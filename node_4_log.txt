@@ -1,0 +1,7 @@
+notice: 4 request token
+send: 4 received token from 3
+notice 4 enter critical section
+notice 4 exit critical section
+notice: 4 release token
+send: 4 send token to 5
+notice: 4 request token
