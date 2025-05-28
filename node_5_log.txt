@@ -1,28 +1,29 @@
+Node 5: Designated file for transfer set to 'something.txt'
 notice: 5 request token
+Node 5: Started reassembly for TransferID 1 from Node 4, expecting 3488 bytes.
+Node 5: Received CHUNK 0 for TransferID 1 (Size: 1024, Total: 1024/3488)
+Node 5: Received CHUNK 1 for TransferID 1 (Size: 1024, Total: 2048/3488)
+Node 5: Received CHUNK 2 for TransferID 1 (Size: 1024, Total: 3072/3488)
+Node 5: Received CHUNK 3 for TransferID 1 (Size: 416, Total: 3488/3488)
+Node 5: Received CONTROL_END_FILE for TransferID 1. Received 3488/3488 bytes in 4 chunks.
+Node 5: Sent ACK for TransferID 1 to Node 4
+Node 5: Reassembled file for TransferID 1 (Size: 3488) and queued for TokenRing.
+Node 5: Received (presumably reassembled by Comm) file data (TransferID: 1, Size: 3488 bytes) from Node 4.
+Node 5: Successfully saved received file data to 'something.txt'.
 send: 5 received token from 4
+Node 5 now has file ownership (received with token).
 notice 5 enter critical section
 notice 5 exit critical section
-notice: 5 release token
+Node 5: Releasing token. Attempting to transfer file to Node 1.
+Node 5: Instructing Comm layer to transfer file 'something.txt' to Node 1 (TransferID: 1).
+Node 5: Sent CONTROL_START_FILE for TransferID 1 (Size: 3488)
+Node 5: Sent CHUNK 0 for TransferID 1 (Size: 1024)
+Node 5: Sent CHUNK 1 for TransferID 1 (Size: 1024)
+Node 5: Sent CHUNK 2 for TransferID 1 (Size: 1024)
+Node 5: Sent CHUNK 3 for TransferID 1 (Size: 416)
+Node 5: Sent CONTROL_END_FILE for TransferID 1
+Node 5: Matched ACK for TransferID 1
+Node 5: ACK received for TransferID 1
+Node 5: File transfer to Node 1 successful.
 send: 5 send token to 1
-init packet in sendToken
-called send from comm successfully
-called comm->send
-notice: 5 request token
-send: 5 received token from 4
-notice 5 enter critical section
-notice 5 exit critical section
-notice: 5 release token
-send: 5 send token to 1
-init packet in sendToken
-called send from comm successfully
-called comm->send
-notice: 5 request token
-send: 5 received token from 4
-notice 5 enter critical section
-notice 5 exit critical section
-notice: 5 release token
-send: 5 send token to 1
-init packet in sendToken
-called send from comm successfully
-called comm->send
 notice: 5 request token

@@ -3,6 +3,9 @@
 
 Config config;
 //-g application/token_ring.cpp -o application/tokenRing -lpaho-mqttpp3 -lpaho-mqtt3a -lpthread -Iframework -Ialgorithm 
+
+const std::string G_DESIGNATED_FILENAME = "something.txt";
+
 void simulate(int id)
 {
     Logger logger("node_" + std::to_string(id) + "_log.txt");
@@ -11,6 +14,8 @@ void simulate(int id)
     int port = config.getPort(id);
     std::shared_ptr<Comm> comm = std::make_shared<Comm>(id, port);
     TokenRing node(id, ip, port, comm);
+
+    node.setDesignatedFile(G_DESIGNATED_FILENAME);
 
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -38,5 +43,17 @@ int main(int argc, char* argv[])
     }
 
     int id = std::stoi(argv[1]);
+    if(id == 1)
+    {
+        std::ifstream f(G_DESIGNATED_FILENAME.c_str());
+        if (!f.good()) {
+            std::cerr << "Error: Node 1 (initiator) cannot find the designated file: '"
+                      << G_DESIGNATED_FILENAME << "'. Please create it." << std::endl;
+            return 1; // Exit if file not found for Node 1
+        }
+        std::cout << "Application: Node 1 confirmed designated file '" << G_DESIGNATED_FILENAME << "' exists." << std::endl;
+    }
+
     simulate(id);
+    return 0;
 }
