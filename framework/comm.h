@@ -32,7 +32,8 @@ enum class PacketType : uint16_t
     CONTROL_END_FILE, // Payload: checksum
     CONTROL_ACK,
     DATA_FILE_CHUNK,  // Payload: a chunk of the file
-    CONTROL_ERROR  // // Payload: error message string
+    CONTROL_ERROR,  // // Payload: error message string
+    CONTROL_TOKEN
 };
 
 struct Packet
@@ -80,7 +81,7 @@ struct Packet
         uint32_t netPayloadSize = htonl(localPayloadSize);
         appendToBuffer(&netPayloadSize, sizeof(netPayloadSize));
 
-        if(localPayloadSize > 0 && !payload.empty())
+        if(localPayloadSize > 0)
         {
             buffer.insert(buffer.end(), payload.begin(), payload.begin() + localPayloadSize);
         }
@@ -154,8 +155,8 @@ private:
     int serverSocket;
     int opt = 1;
     std::mutex socketMutex;                      
-    std::condition_variable messageAvailable;
-    std::queue<std::string> messageQueue; 
+    std::condition_variable m_packetAvailable;
+    std::queue<Packet> m_packetQueue; 
     std::thread m_receiveThread;
 
 public:
@@ -172,7 +173,7 @@ public:
         servaddr.sin_addr.s_addr = INADDR_ANY;
         servaddr.sin_port = htons(port);
 
-        if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&opt, sizeof(opt))) 
+        if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&opt, sizeof(opt)) < 0) 
         {
             throw std::runtime_error("Error setting socket options");
         }
@@ -185,8 +186,8 @@ public:
 
         if (::listen(serverSocket, 5) < 0) 
         {
-            throw std::runtime_error("Listen failed");
             close(serverSocket);
+            throw std::runtime_error("Listen failed");
         }
 
         m_receiveThread = std::thread(&Comm::receiveThread, this);
@@ -203,7 +204,8 @@ public:
 
     void send(int destId, const std::string& message) 
     {       
-        auto it = config.getNodeConfigs().find(destId);
+        auto nodeConfigsMap = config.getNodeConfigs();
+        auto it = nodeConfigsMap.find(destId);
         int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
         if (clientSocket < 0) {
             close(clientSocket);
@@ -224,48 +226,179 @@ public:
         close(clientSocket);
     }
 
-    int getMessage(std::string& msg) 
+    void send(int destId, const Packet& packet)
+    {
+        auto nodeConfigsMap = config.getNodeConfigs();
+        auto it = nodeConfigsMap.find(destId);
+        if(it == config.getNodeConfigs().end())
+        {
+            std::cerr << "Node " << id << ": Destination ID " << destId << " not found in config." << std::endl;
+            return;
+        }
+
+        int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+        if(clientSocket < 0)
+        {
+            std::cerr << "Node " << id << ": Failed to create client socket." << std::endl;
+            return;
+        }
+
+        sockaddr_in destIp;
+        destIp.sin_family = AF_INET;
+        destIp.sin_port = htons(it->second.port);
+        inet_pton(AF_INET, it->second.ip.c_str(), &destIp.sin_addr);
+        if(connect(clientSocket, (struct sockaddr*)&destIp, sizeof(destIp)) < 0)
+        {
+            std::cerr << "Node " << id << ": Connection failed to ID " << destId << " for string send." << std::endl;
+            close(clientSocket);
+            return;
+        }
+
+        std::vector<char> serializedData = packet.serializePacket();
+        if(serializedData.empty() && packet.payloadSize > 0)
+        {
+            std::cerr << "Node " << id << ": Packet serialization resulted in empty buffer for non-empty payload." << std::endl;
+            close(clientSocket);
+            return;
+        }
+        if(serializedData.empty() && packet.type == PacketType::UNDEFINED && packet.senderId == 0)
+        {
+            std::cout << "Node " << id << ": Attempting to send empty/default initialized packet." << std::endl;
+        }
+
+        ssize_t totalBytesSent = 0;
+        while(totalBytesSent < serializedData.size())
+        {
+            ssize_t bytesSend = ::send(clientSocket, serializedData.data() + totalBytesSent, serializedData.size() - totalBytesSent, 0);
+            if (bytesSend < 0)
+             {
+                if (errno == EINTR) continue;
+                std::cerr << "Node " << id << ": Failed to send packet data to ID " << destId << " (errno: " << errno << ")" << std::endl;
+                close(clientSocket);
+                return;
+            }
+            if (bytesSend == 0 && serializedData.size() > 0) 
+            { 
+                std::cerr << "Node " << id << ": Sent 0 bytes when trying to send packet data to ID " << destId << std::endl;
+                close(clientSocket);
+                return;
+            }
+            totalBytesSent += bytesSend;
+        }
+        
+        std::cout << "called send from comm successfully" << std::endl;
+        close(clientSocket);
+    }
+
+    bool getMessage(Packet& outPacket) 
     {
         std::unique_lock<std::mutex> lock(socketMutex);
-        messageAvailable.wait(lock, [this]{ return !messageQueue.empty(); });
-        
-        if (messageQueue.empty()) {
-            return 0; 
-        }
-        msg = messageQueue.front();
-        messageQueue.pop();
-        return 1;
+        m_packetAvailable.wait(lock, [this]{ return !m_packetQueue.empty(); });
+        outPacket = m_packetQueue.front();
+        m_packetQueue.pop();
+        return true; 
     }
 
 private:
     void receiveThread() 
     {  
+        const size_t FIXED_HEADER_SIZE = 26;
         while (1) 
         {
             int clientSocket = accept(serverSocket, nullptr, nullptr);
             if (clientSocket >= 0) 
             {
-                char buffer[1024] = {0};
-                int bytesRead = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
-                if (bytesRead < 0) 
+                std::vector<char> headerBuffer(FIXED_HEADER_SIZE);
+                ssize_t totalHeaderBytesRead = 0;
+                while(totalHeaderBytesRead < FIXED_HEADER_SIZE)
                 {
-                    close(clientSocket);
-                    throw std::runtime_error("Failed to receive message");
-                }
-                else 
-                {
-                    buffer[bytesRead] = '\0';
+                    ssize_t bytesRead = recv(clientSocket, headerBuffer.data() + totalHeaderBytesRead, FIXED_HEADER_SIZE - totalHeaderBytesRead, 0);
+                    
+                    if(bytesRead < 0)
                     {
-                        std::lock_guard<std::mutex> lock(socketMutex);
-                        messageQueue.emplace(std::string(buffer));
+                        if(errno == EINTR) continue;
+                        std::cerr << "Node " << id << ": recv error reading header (errno: " << errno << ")." << std::endl;
+                        goto endClientHandling;
                     }
-                    messageAvailable.notify_one();
+                    if(bytesRead == 0) //client disconnected
+                    {
+                        goto endClientHandling;
+                    }
+                    totalHeaderBytesRead += bytesRead;
                 }
-                close(clientSocket);
+                if (totalHeaderBytesRead == FIXED_HEADER_SIZE) 
+                {
+                    uint32_t networkPayloadSize;
+                    std::memcpy(&networkPayloadSize, headerBuffer.data() + ((FIXED_HEADER_SIZE) - sizeof(uint32_t)), sizeof(uint32_t));
+                    uint32_t hostPayloadSize = ntohl(networkPayloadSize);
+                    
+                    std::vector<char> payloadBuffer;
+                    if(hostPayloadSize > 0)
+                    {
+                        payloadBuffer.resize(hostPayloadSize);
+                        ssize_t totalPayloadBytesRead = 0;
+                        while(totalPayloadBytesRead < hostPayloadSize)
+                        {
+                            ssize_t bytesRead = recv(clientSocket, payloadBuffer.data() + totalPayloadBytesRead, hostPayloadSize - totalPayloadBytesRead, 0);
+                            if(bytesRead < 0)
+                            {
+                                if(errno == EINTR) continue;
+                                std::cerr << "Node " << id << ": recv error reading payload (errno: "<< errno <<")." << std::endl;
+                                goto endClientHandling;
+                            }
+                            if(bytesRead == 0) //client disconnected
+                            {
+                                // std::cout << "Node " << id << ": Client disconnected while sending payload." << std::endl;
+                                goto endClientHandling;
+                            }
+                            totalPayloadBytesRead += bytesRead;
+                        }
+                        
+                        if(totalPayloadBytesRead != hostPayloadSize)
+                        {
+                            std::cerr << "Node " << id << ": Mismatch in expected (" << hostPayloadSize 
+                            << ") abd read (" << totalPayloadBytesRead << ")." << std::endl;
+                            goto endClientHandling;
+                        }
+                    }
+
+                    //combine header and payload
+                    std::vector<char> fullPacketBuffer = headerBuffer;
+                    if(hostPayloadSize > 0 && !payloadBuffer.empty())
+                    {
+                        fullPacketBuffer.insert(fullPacketBuffer.end(), payloadBuffer.begin(), payloadBuffer.end());
+                    }
+
+                    //try deserialize
+                    Packet receivedPacket;
+                    if(receivedPacket.deserializePacket(fullPacketBuffer.data(), fullPacketBuffer.size()))
+                    {
+                        {
+                            std::lock_guard<std::mutex> locK(socketMutex);
+                            m_packetQueue.push(receivedPacket);
+                        }
+                        m_packetAvailable.notify_one();
+                    }
+                    else
+                    {
+                        std::cerr << "Node " << id << " failed to deserialize packet from " << fullPacketBuffer.size() << " bytes." << std::endl;
+                    }
+                }
+                endClientHandling:
+                    close(clientSocket);
             }
             else 
             {
-                throw std::runtime_error("Error accepting connection");
+                if(errno == EINTR) continue;
+                if(serverSocket != -1)
+                {
+                    std::cerr << "Node " << id << ": accept failed (errno: " << errno << ")." << std::endl;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
+                }
+                else
+                {
+                    break;
+                }
             }
         }
     }

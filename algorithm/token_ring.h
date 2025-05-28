@@ -57,7 +57,21 @@ private:
         hasToken = false;
 
         std::cout << "send: " << id << " send token to " << m_next << std::endl;
-        comm->send(m_next, std::to_string(id) + "TOKEN");
+
+        Packet tokenPacket;
+        tokenPacket.senderId = this->id;
+        tokenPacket.destId = m_next;
+        tokenPacket.type = PacketType::CONTROL_TOKEN;
+        tokenPacket.transferId = 0;
+        tokenPacket.seq = 0;
+        tokenPacket.ack = 0;
+        
+        std::string payload_string = "TRALALERO TRALALA, POCORERO POCORA"; // Or your "COOOCKed" string
+        tokenPacket.payload.assign(payload_string.begin(), payload_string.end());
+
+        std::cout << "init packet in sendToken" << std::endl;
+        comm->send(m_next, tokenPacket);
+        std::cout << "called comm->send" << std::endl;
     }
 
     void receivedToken(int senderId)
@@ -76,25 +90,28 @@ private:
         }
     }
 
-    void processMessages(const std::string& msg)
+    void processPacket(const Packet& packet)
     {
-        std::istringstream iss(msg);
-        int id;
-        std::string content;
-        iss >> id >> content;
-        if (content == "TOKEN") {
-            receivedToken(id);
+        if(packet.type == PacketType::CONTROL_TOKEN)
+        {
+            receivedToken(packet.senderId);
+        }
+        else
+        {
+            std::cout << "Node " << id << " (TokenRing) received unhandled packet type: " 
+                      << static_cast<int>(packet.type) 
+                      << " from sender: " << packet.senderId << std::endl;
         }
     }
 
     void receiveMessasges()
     {
-        std::string msg;
+        Packet receivedPacket;
         while(true)
         {
-            if(comm->getMessage(msg))
+            if(comm->getMessage(receivedPacket))
             {
-                processMessages(msg);
+                processPacket(receivedPacket);
             }
         }
     }

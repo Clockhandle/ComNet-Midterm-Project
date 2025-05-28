@@ -4,4 +4,25 @@ notice 5 enter critical section
 notice 5 exit critical section
 notice: 5 release token
 send: 5 send token to 1
+init packet in sendToken
+called send from comm successfully
+called comm->send
+notice: 5 request token
+send: 5 received token from 4
+notice 5 enter critical section
+notice 5 exit critical section
+notice: 5 release token
+send: 5 send token to 1
+init packet in sendToken
+called send from comm successfully
+called comm->send
+notice: 5 request token
+send: 5 received token from 4
+notice 5 enter critical section
+notice 5 exit critical section
+notice: 5 release token
+send: 5 send token to 1
+init packet in sendToken
+called send from comm successfully
+called comm->send
 notice: 5 request token
