@@ -1,0 +1,29 @@
+{
+    "tasks": [
+        {
+            "type": "cppbuild",
+            "label": "Build tokenRing",
+            "command": "/usr/bin/g++-13",
+            "args": [
+                //"-fdiagnostics-color=always",
+                "-g",
+                "${workspaceFolder}/application/token_ring.cpp",  
+                "-o",
+                "${workspaceFolder}/application/tokenRing",  
+                "-lpaho-mqttpp3", "-lpaho-mqtt3a", "-lpthread",  
+                "-I${workspaceFolder}/framework", 
+                "-I${workspaceFolder}/algorithm"  
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": ["$gcc"],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "Task for compiling token_ring.cpp."
+        }
+    ],
+    "version": "2.0.0"
+}
