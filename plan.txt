@@ -1,0 +1,86 @@
+Okay, here's a step-by-step implementation plan, focusing on the tasks without providing code blocks:
+
+Phase 1: Core Comm Layer Modifications for P2P Support
+
+Step 1.1: Update PacketType Enum
+Define new types: REQUEST_FILE_CHUNK, ANNOUNCE_FILE_METADATA, INTERNAL_FULL_FILE_REASSEMBLED.
+Identify existing types like CONTROL_START_FILE, CONTROL_END_FILE, CONTROL_ACK, and CONTROL_TOKEN for deprecation or role change in the P2P context.
+Step 1.2: Adjust FileReassemblyBuffer Struct
+Remove originalSenderId as chunks will arrive from multiple peers.
+Add numTotalChunksExpected to aid in robust completion detection.
+Step 1.3: Implement Comm::setupDownloadSession Method
+This public method will be called by the P2PFileSharer (algorithm layer).
+It initializes a FileReassemblyBuffer for a given fileTransferId, totalFileSize, and numTotalChunks.
+Step 1.4: Modify Comm::receiveThread() for P2P Packet Handling
+DATA_FILE_CHUNK Processing:
+Find the FileReassemblyBuffer using packet.transferId.
+Store the chunk in buffer.chunks using packet.seq as the key.
+Update buffer.bytesReceived.
+Completion Check: If buffer.chunks.size() equals buffer.numTotalChunksExpected (or buffer.bytesReceived equals buffer.totalSizeExpected and all sequence numbers are present), assemble the full file.
+Create an INTERNAL_FULL_FILE_REASSEMBLED packet containing the full file data.
+Queue this internal packet for the P2PFileSharer via m_packetQueue.
+Clean up the FileReassemblyBuffer for that transferId.
+Mark DATA_FILE_CHUNK as packetHandledInternally = true.
+Other P2P Packets (REQUEST_FILE_CHUNK, ANNOUNCE_FILE_METADATA):
+These should not be handled internally by Comm.
+Ensure they are passed to the m_packetQueue for the P2PFileSharer to process.
+Deprecated Packet Types: Review handling for CONTROL_START_FILE, CONTROL_END_FILE, and CONTROL_ACK to ensure they don't interfere with the new P2P logic or are phased out.
+Step 1.5: Deprecate or Refactor Comm::initiateFileTransfer()
+The old method of sending an entire file sequentially will be replaced.
+The P2PFileSharer will instruct Comm to send individual DATA_FILE_CHUNK packets. Consider if a new, simpler Comm::sendChunk(destId, packet) is needed or if the existing Comm::send(destId, packet) suffices when the P2PFileSharer constructs the DATA_FILE_CHUNK packet.
+Phase 2: Implement P2PFileSharer Algorithm Layer (New Class/Files)
+
+Step 2.1: Define P2PFileSharer Class Structure
+Include members for node ID, a shared pointer to Comm, file metadata (filename, total size, chunk size, number of chunks, file transfer ID), chunk status (e.g., std::vector<bool> has_chunk), and peer information (if implementing advanced peer selection).
+Include mutexes for thread-safe access to shared data.
+Step 2.2: Implement File Metadata Management
+Logic for an initial seeder to load a file, determine its metadata, and generate a unique fileTransferId.
+Logic for leechers to receive and store file metadata from ANNOUNCE_FILE_METADATA packets.
+Upon receiving metadata, a leecher's P2PFileSharer calls comm->setupDownloadSession().
+Step 2.3: Implement Chunk State Tracking
+Maintain a data structure (e.g., std::vector<bool>) to track which chunks are possessed.
+Update this state when chunks are successfully received (after Comm delivers INTERNAL_FULL_FILE_REASSEMBLED or if P2PFileSharer tracks individual chunks before full reassembly by Comm).
+Step 2.4: Implement Chunk Requesting Logic
+A loop or triggered mechanism to identify needed chunks.
+Strategy for selecting which chunk to request next (e.g., sequential, random, rarest-first).
+Strategy for selecting which peer to request from (e.g., random, round-robin, proximity-based using config.env location data).
+Construct REQUEST_FILE_CHUNK packets and use comm->send() to send them.
+Step 2.5: Implement Chunk Serving Logic
+When P2PFileSharer receives a REQUEST_FILE_CHUNK packet (from its Comm queue):
+Check if it possesses the requested chunk.
+If yes, read the chunk data from the local file.
+Construct a DATA_FILE_CHUNK packet (with correct transferId, seq as chunk index, and payload).
+Use comm->send() to send the chunk to the requester.
+Step 2.6: Implement Main Processing Loop and Thread Management
+A main loop in P2PFileSharer (likely in a separate thread) to call comm->getMessage().
+A switch statement to handle different packet types received from Comm:
+ANNOUNCE_FILE_METADATA: Process and store metadata, call comm->setupDownloadSession().
+REQUEST_FILE_CHUNK: Trigger chunk serving logic.
+INTERNAL_FULL_FILE_REASSEMBLED: Log completion, save the file, update local state to indicate full file possession, potentially start seeding.
+Consider a separate thread for proactive chunk requesting.
+Phase 3: Application Layer Integration (New Main or Modified Existing)
+
+Step 3.1: Create or Modify Main Application File
+(e.g., application/p2p_app.cpp).
+Step 3.2: Initialization
+Initialize Config, Logger.
+Create Comm instance.
+Create P2PFileSharer instance, passing it the node ID, Comm instance, target filename, and whether it's an initial seeder.
+Step 3.3: Define Initial Seeder(s) and Leecher Behavior
+Logic for Node 1 (or designated seeders) to initialize its P2PFileSharer as a seeder (load file, prepare metadata).
+Seeders might proactively send ANNOUNCE_FILE_METADATA or wait for requests.
+Leechers might initially send a broadcast-like request for metadata or query known seeders.
+Step 3.4: Logging
+Add comprehensive logging in P2PFileSharer for key events: metadata announcement/reception, chunk requests sent/received, chunks served, file download completion.
+Phase 4: Testing and Refinement
+
+Step 4.1: Incremental Testing
+Test metadata announcement and reception.
+Test single chunk request and delivery.
+Test full file download from a single seeder.
+Test download with multiple leechers and multiple potential seeders (once leechers acquire chunks).
+Step 4.2: Peer Discovery (Future Enhancement)
+Consider how nodes discover each other or discover who has which chunks (e.g., tracker, gossip protocol, DHT). For now, they might just know about Node 1 or all nodes from config.env.
+Step 4.3: Robustness
+Handle cases like peers going offline, timeouts for chunk requests (if implementing).
+This plan breaks the work into manageable phases, starting with the necessary modifications to the communication layer and then building the P2P logic on top.

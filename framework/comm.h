@@ -17,15 +17,10 @@
 
 #include "config.h"
 
-#if __linux__
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#endif
 
-#ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#endif
+
 
 constexpr size_t FILE_CHUNK_PAYLOAD_SIZE = 1024;
 const std::chrono::seconds FILE_TRANSFER_ACK_TIMEOUT = std::chrono::seconds(10);
@@ -33,12 +28,32 @@ const std::chrono::seconds FILE_TRANSFER_ACK_TIMEOUT = std::chrono::seconds(10);
 enum class PacketType : uint16_t
 {
     UNDEFINED = 0,
-    CONTROL_START_FILE, // Payload: serialized(totalFileSizeBytes)
-    CONTROL_END_FILE, // Payload: checksum (optional)
-    CONTROL_ACK,
-    DATA_FILE_CHUNK,  // Payload: a chunk of the file
-    CONTROL_ERROR,  // Payload: error message string
-    CONTROL_TOKEN
+    CONTROL_START_FILE, // DEPRECATED or for Comm internal use only with setupDownloadSession
+    CONTROL_END_FILE,   // DEPRECATED or for Comm internal use only
+    CONTROL_ACK,        // DEPRECATED - Replaced by CHUNK_ACK for P2P
+    DATA_FILE_CHUNK,    // Role: Carries a specific chunk. Packet::seq is chunk_index. Packet::transferId identifies the file.
+    CONTROL_ERROR,
+    CONTROL_TOKEN,      // Likely DEPRECATED if TokenRing is fully removed for file sharing
+
+    // New P2P Packet Types
+    REQUEST_FILE_CHUNK,     // Requester asks for a specific chunk.
+                            // Payload: uint32_t chunk_index.
+                            // Packet::transferId identifies the file.
+                            // Packet::senderId is the requester. Packet::destId is the potential provider.
+
+    ANNOUNCE_FILE_METADATA, // Provider announces file details.
+                            // Payload: struct/string { filename_str, total_size_bytes_uint32, chunk_size_bytes_uint32, num_total_chunks_uint32 }
+                            // Packet::transferId is the unique ID for this file.
+                            // Packet::senderId is the announcer.
+
+    CHUNK_ACK,              // Receiver acknowledges receipt of a specific chunk.
+                            // Packet::transferId identifies the file.
+                            // Packet::seq (or ack field) identifies the chunk_index being ACKed.
+                            // Packet::senderId is the ACK sender (original chunk receiver). Packet::destId is original chunk sender.
+
+    INTERNAL_FULL_FILE_REASSEMBLED // Special type Comm uses to notify P2PFileSharer
+                                   // Payload: The entire reassembled file data.
+                                   // Packet::transferId identifies the file.
 };
 
 struct Packet
@@ -176,10 +191,10 @@ private:
         uint32_t transferId;
         uint32_t totalSizeExpected;
         uint32_t bytesReceived;
+        uint32_t numTotalChunksExpected;
         std::map<uint32_t /*sequenceNumber*/, std::vector<char>> chunks;
-        int originalSenderId;
 
-        FileReassemblyBuffer() : transferId(0), totalSizeExpected(0), bytesReceived(0), originalSenderId(0)
+        FileReassemblyBuffer() : transferId(0), totalSizeExpected(0), bytesReceived(0), numTotalChunksExpected(0)
         {
         }
     };
@@ -232,6 +247,28 @@ public:
         {
             m_receiveThread.join();
         }
+    }
+
+    void setupDownloadSession(uint32_t fileTransferId, uint32_t totalFileSize, uint32_t numTotalChunks)
+    {
+        std::lock_guard<std::mutex> lock(m_reassemblyMutex);
+        if(m_incomingFileTransfers.count(fileTransferId))
+        {
+            std::cout << "Node " << this->id << ": Download session for TransferID "
+                      << fileTransferId << " already exists. Ignoring new setup." << std::endl;
+            return;
+        }
+
+        FileReassemblyBuffer buffer;
+        buffer.transferId = fileTransferId;
+        buffer.totalSizeExpected = totalFileSize;
+        buffer.numTotalChunksExpected = numTotalChunks;
+        buffer.bytesReceived = 0;
+
+        m_incomingFileTransfers[fileTransferId] = buffer;
+        std::cout << "Node " << this->id << ": Setup download session for TransferID " << fileTransferId
+                  << ", expecting " << buffer.totalSizeExpected << " bytes in "
+                  << buffer.numTotalChunksExpected << " chunks." << std::endl;
     }
 
     bool initiateFileTransfer(int destId, const std::string& filePath, uint32_t transferId)
@@ -542,167 +579,84 @@ private:
                 Packet receivedPacket;
                 if(receivedPacket.deserializePacket(fullPacketBuffer.data(), fullPacketBuffer.size()))
                 {
-                    bool packetHandledInternally = false;
-
-                    if (receivedPacket.type == PacketType::CONTROL_ACK)
+                    if (receivedPacket.type == PacketType::DATA_FILE_CHUNK)
                     {
-                        std::lock_guard<std::mutex> lock(m_ackMapMutex);
-                        auto it = m_ackPromises.find(receivedPacket.transferId);
-                        if (it != m_ackPromises.end())
-                        {
-                            try
-                            {
-                                it->second.set_value(true);
-                                std::cout << "Node " << this->id << ": Matched ACK for TransferID " << receivedPacket.transferId << std::endl;
-                            }
-                            catch (const std::future_error& e)
-                            {
-                                std::cerr << "Node " << this->id << ": Future error setting promise for ACK TransferID " << receivedPacket.transferId << ": " << e.what() << std::endl;
-                            }
-                            packetHandledInternally = true;
-                        } else
-                        {
-                             std::cout << "Node " << this->id << ": Received unmatched CONTROL_ACK for TransferID " << receivedPacket.transferId << std::endl;
-                        }
-                    }
-                    else if (receivedPacket.type == PacketType::CONTROL_START_FILE)
-                    {
-                        std::lock_guard<std::mutex> lock(m_reassemblyMutex);
-                        if (m_incomingFileTransfers.count(receivedPacket.transferId))
-                        {
-                            std::cerr << "Node " << this->id << ": Duplicate CONTROL_START_FILE for TransferID " << receivedPacket.transferId << std::endl;
-                        }
-                        else
-                        {
-                            FileReassemblyBuffer buffer;
-                            buffer.transferId = receivedPacket.transferId;
-                            buffer.originalSenderId = receivedPacket.senderId;
-                            if (receivedPacket.payloadSize == sizeof(uint32_t))
-                            {
-                                uint32_t netFileSize;
-                                std::memcpy(&netFileSize, receivedPacket.payload.data(), sizeof(uint32_t));
-                                buffer.totalSizeExpected = ntohl(netFileSize);
-                            }
-                            else
-                            {
-                                std::cerr << "Node " << this->id << ": Invalid payload size for CONTROL_START_FILE, TransferID " << receivedPacket.transferId << std::endl;
-                                buffer.totalSizeExpected = 0;
-                            }
-                            buffer.bytesReceived = 0;
-                            m_incomingFileTransfers[receivedPacket.transferId] = buffer;
-                            std::cout << "Node " << this->id << ": Started reassembly for TransferID " << receivedPacket.transferId
-                                      << " from Node " << buffer.originalSenderId << ", expecting " << buffer.totalSizeExpected << " bytes." << std::endl;
-                        }
-                        packetHandledInternally = true;
-                    }
-                    else if (receivedPacket.type == PacketType::DATA_FILE_CHUNK)
-                    {
+                        // This block processes the chunk data for reassembly.
+                        // The original DATA_FILE_CHUNK packet will still be queued for P2PFileSharer
+                        // so it knows to send a CHUNK_ACK.
                         std::lock_guard<std::mutex> lock(m_reassemblyMutex);
                         auto it = m_incomingFileTransfers.find(receivedPacket.transferId);
                         if (it != m_incomingFileTransfers.end())
                         {
                             FileReassemblyBuffer& buffer = it->second;
-                            if (buffer.chunks.count(receivedPacket.seq))
-                            {
-                                std::cout << "Node " << this->id << ": Duplicate CHUNK " << receivedPacket.seq << " for TransferID " << receivedPacket.transferId << std::endl;
-                            }
-                            else
+                            if (!buffer.chunks.count(receivedPacket.seq) && buffer.numTotalChunksExpected > 0)
                             {
                                 buffer.chunks[receivedPacket.seq] = receivedPacket.payload;
                                 buffer.bytesReceived += receivedPacket.payloadSize;
-                                std::cout << "Node " << this->id << ": Received CHUNK " << receivedPacket.seq << " for TransferID " << receivedPacket.transferId
-                                          << " (Size: " << receivedPacket.payloadSize << ", Total: " << buffer.bytesReceived << "/" << buffer.totalSizeExpected << ")" << std::endl;
+                                std::cout << "Node " << this->id << ": Stored CHUNK " << receivedPacket.seq
+                                          << " for FileID " << receivedPacket.transferId
+                                          << " (Size: " << receivedPacket.payloadSize
+                                          << ", Total Chunks Stored: " << buffer.chunks.size() << "/" << buffer.numTotalChunksExpected
+                                          << ", Total Bytes: " << buffer.bytesReceived << "/" << buffer.totalSizeExpected << ")" << std::endl;
+                                // Check for completion
+                                if (buffer.chunks.size() == buffer.numTotalChunksExpected && buffer.numTotalChunksExpected > 0)
+                                {
+                                    std::vector<char> reassembledFilePayload;
+                                    reassembledFilePayload.reserve(buffer.totalSizeExpected);
+                                    bool allChunksValid = true;
+                                    for (uint32_t i = 0; i < buffer.numTotalChunksExpected; ++i) {
+                                        if (buffer.chunks.count(i)) 
+                                        {
+                                            reassembledFilePayload.insert(reassembledFilePayload.end(), buffer.chunks[i].begin(), buffer.chunks[i].end());
+                                        } 
+                                        else 
+                                        {
+                                            std::cerr << "Node " << this->id << ": CRITICAL - Missing chunk " << i << " during final reassembly for FileID " << buffer.transferId << std::endl;
+                                            allChunksValid = false;
+                                            break;
+                                        }
+                                    }
+
+                                        if (allChunksValid && reassembledFilePayload.size() == buffer.totalSizeExpected) {
+                                        Packet internalCompletePacket;
+                                        internalCompletePacket.type = PacketType::INTERNAL_FULL_FILE_REASSEMBLED;
+                                        internalCompletePacket.transferId = buffer.transferId;
+                                        internalCompletePacket.payload = reassembledFilePayload;
+                                        internalCompletePacket.payloadSize = static_cast<uint32_t>(reassembledFilePayload.size());
+                                        internalCompletePacket.senderId = 0; // System internal
+                                        internalCompletePacket.destId = this->id;
+
+                                        // Queue the special "full file reassembled" packet
+                                        {
+                                            std::lock_guard<std::mutex> qLock(socketMutex);
+                                            m_packetQueue.push(internalCompletePacket);
+                                        }
+                                        // Also queue the original DATA_FILE_CHUNK so P2PFileSharer can ACK it
+                                        // (This happens because packetHandledInternally remains false)
+
+                                        m_packetAvailable.notify_one(); // Notify for both packets potentially
+                                        std::cout << "Node " << this->id << ": Reassembled FileID " << buffer.transferId
+                                                << " (Size: " << internalCompletePacket.payloadSize << ") and queued INTERNAL_FULL_FILE_REASSEMBLED." << std::endl;
+                                        
+                                        m_incomingFileTransfers.erase(it); // Clean up the buffer for this completed transfer
+                                    } else if (allChunksValid && reassembledFilePayload.size() != buffer.totalSizeExpected) {
+                                        std::cerr << "Node " << this->id << ": Reassembled size mismatch for FileID " << buffer.transferId
+                                                << ". Expected " << buffer.totalSizeExpected << " got " << reassembledFilePayload.size() << std::endl;
+                                    }
+                                }
+                            } else if (buffer.chunks.count(receivedPacket.seq)) {
+                                std::cout << "Node " << this->id << ": Duplicate CHUNK " << receivedPacket.seq
+                                        << " for FileID " << receivedPacket.transferId << std::endl;
                             }
+                            // packetHandledInternally remains false for DATA_FILE_CHUNK,
+                            // so it will be queued for P2PFileSharer to handle (e.g., send CHUNK_ACK).
                         }
                         else
                         {
-                            std::cerr << "Node " << this->id << ": Received DATA_FILE_CHUNK for unknown TransferID " << receivedPacket.transferId << std::endl;
+                            std::cerr << "Node " << this->id << ": Received DATA_FILE_CHUNK for unknown/uninitialized FileID "
+                                    << receivedPacket.transferId << std::endl;
+                            // Still queue it; P2PFileSharer might want to see it, though it's likely an error.
                         }
-                        packetHandledInternally = true;
-                    }
-                    else if (receivedPacket.type == PacketType::CONTROL_END_FILE)
-                    {
-                        Packet ackPacket;
-                        bool reassemblyOk = false;
-                        std::vector<char> reassembledFilePayload;
-
-                        {
-                            std::lock_guard<std::mutex> lock(m_reassemblyMutex);
-                            auto it = m_incomingFileTransfers.find(receivedPacket.transferId);
-                            if (it != m_incomingFileTransfers.end())
-                            {
-                                FileReassemblyBuffer& buffer = it->second;
-                                std::cout << "Node " << this->id << ": Received CONTROL_END_FILE for TransferID " << receivedPacket.transferId
-                                          << ". Received " << buffer.bytesReceived << "/" << buffer.totalSizeExpected << " bytes in "
-                                          << buffer.chunks.size() << " chunks." << std::endl;
-
-                                if (buffer.bytesReceived == buffer.totalSizeExpected)
-                                {
-                                    for (const auto& pair : buffer.chunks)
-                                    {
-                                        reassembledFilePayload.insert(reassembledFilePayload.end(), pair.second.begin(), pair.second.end());
-                                    }
-                                    if (reassembledFilePayload.size() == buffer.totalSizeExpected)
-                                    {
-                                        reassemblyOk = true;
-                                    }
-                                    else
-                                    {
-                                        std::cerr << "Node " << this->id << ": Reassembled size mismatch for TransferID " << receivedPacket.transferId << std::endl;
-                                    }
-                                }
-                                else
-                                {
-                                    std::cerr << "Node " << this->id << ": Byte count mismatch on END_FILE for TransferID " << receivedPacket.transferId << std::endl;
-                                }
-
-                                ackPacket.senderId = this->id;
-                                ackPacket.destId = buffer.originalSenderId;
-                                ackPacket.type = PacketType::CONTROL_ACK;
-                                ackPacket.transferId = receivedPacket.transferId;
-                                ackPacket.payloadSize = 0;
-
-                                m_incomingFileTransfers.erase(it);
-                            }
-                            else
-                            {
-                                std::cerr << "Node " << this->id << ": Received CONTROL_END_FILE for unknown TransferID " << receivedPacket.transferId << std::endl;
-                            }
-                        }
-
-                        if (ackPacket.destId != 0)
-                        {
-                            this->send(ackPacket.destId, ackPacket);
-                            std::cout << "Node " << this->id << ": Sent ACK for TransferID " << receivedPacket.transferId << " to Node " << ackPacket.destId << std::endl;
-                        }
-
-                        if (reassemblyOk)
-                        {
-                            Packet fileDataPacket;
-                            fileDataPacket.senderId = receivedPacket.senderId;
-                            fileDataPacket.destId = this->id;
-                            fileDataPacket.type = PacketType::DATA_FILE_CHUNK;
-                            fileDataPacket.transferId = receivedPacket.transferId;
-                            fileDataPacket.payload = reassembledFilePayload;
-                            fileDataPacket.payloadSize = static_cast<uint32_t>(fileDataPacket.payload.size());
-
-                            {
-                                std::lock_guard<std::mutex> qLock(socketMutex);
-                                m_packetQueue.push(fileDataPacket);
-                            }
-                            m_packetAvailable.notify_one();
-                            std::cout << "Node " << this->id << ": Reassembled file for TransferID " << receivedPacket.transferId << " (Size: " << fileDataPacket.payloadSize << ") and queued for TokenRing." << std::endl;
-                        }
-                        packetHandledInternally = true;
-                    }
-
-                    if (!packetHandledInternally)
-                    {
-                        {
-                            std::lock_guard<std::mutex> qLock(socketMutex);
-                            m_packetQueue.push(receivedPacket);
-                        }
-                        m_packetAvailable.notify_one();
                     }
                 }
                 else
