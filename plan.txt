@@ -84,3 +84,43 @@ Consider how nodes discover each other or discover who has which chunks (e.g., t
 Step 4.3: Robustness
 Handle cases like peers going offline, timeouts for chunk requests (if implementing).
 This plan breaks the work into manageable phases, starting with the necessary modifications to the communication layer and then building the P2P logic on top.
+
+
+Leachers become providers:
+
+Phase 1: Leecher Transition to Seeder
+
+Modify P2PFileSharer::shareFile Method:
+
+Goal: Allow shareFile to be used not only for initial seeding (generating a new fileId) but also for a leecher to announce it now has an existing file (using the original fileId and metadata).
+Change:
+Add an optional const FileMetadata* existingMetadata parameter to shareFile.
+If existingMetadata is provided:
+Use existingMetadata->fileId instead of generating a new one.
+Use other fields from existingMetadata (like totalSize, chunkSize, numTotalChunks, filename).
+The filePath parameter will be the leecher's local path to the downloaded file.
+If existingMetadata is nullptr (or not provided), behave as before (generate new fileId, derive metadata from filePath).
+Update P2PFileSharer::handleInternalFullFileReassembled (Leecher Side):
+
+Goal: When a leecher successfully downloads and reassembles a file, it should immediately start sharing it.
+Change:
+After the file is successfully written to disk (outFile.close() and no error):
+The leecher has the FileMetadata for the downloaded file (stored in its DownloadState or passed in the INTERNAL_FULL_FILE_REASSEMBLED packet's associated data).
+Call this->shareFile(targetFilePath, fileMeta.filename, &fileMeta); (or similar, passing the original metadata).
+This will add the file to the leecher's m_availableFiles and trigger ANNOUNCE_FILE_METADATA packets from this leecher to all other peers, using the original fileId.
+Phase 2: Peer Discovery and Utilization
+
+Verify P2PFileSharer::processFileAnnouncement (All Nodes):
+
+Goal: Ensure that when any node (original seeder or a new leecher-turned-seeder) announces a file, other nodes correctly update their knowledge.
+Check: This method already adds the announcerNodeId to m_knownFileProviders[announcedFile.fileId] and stores the metadata in m_announcedFileMetadata. This should work correctly for announcements from new providers.
+P2PFileSharer::requestNeededChunks (Leecher Side):
+
+Goal: Leecher should be able to request chunks from any known provider, not just the original seeder.
+Current State & Impact: The current logic in requestNeededChunks selects a provider from m_knownFileProviders using a round-robin approach (potentialProviders[currentProviderIdx % potentialProviders.size()]).
+No immediate change needed here for basic functionality: As new providers (former leechers) announce themselves, they will be added to m_knownFileProviders. The existing round-robin mechanism will naturally start distributing requests among all available providers over subsequent calls to requestNeededChunks.
+Future Enhancement (Optional for now): For more advanced peer selection (e.g., requesting different chunks from different peers simultaneously within one call to requestNeededChunks, or "rarest first"), this method would need significant refactoring. For now, the round-robin over multiple calls will achieve provider diversification.
+Phase 3: Constants and Configuration
+
+MAX_OUTSTANDING_REQUESTS:
+This constant remains relevant. It limits how many chunks a leecher requests from its currently chosen provider in one batch. It helps prevent overwhelming any single provider.

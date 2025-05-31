@@ -1,0 +1,41 @@
+--- P2P File Transfer Application (Node 1) ---
+Logging to: node_1_p2p.log
+Simulating P2P Node 1 (Automated Run)
+Node 1 listening on port 8081
+P2PFileSharer for Node 1 initialized.
+P2PFileSharer for Node N started.zed.
+
+1: P2PFileSharer processing loop started.
+P2PFileSharer for Node N started.zed.
+
+1: P2PFileSharer processing loop started.
+Node 1 (Seeder) starting to share './something.txt' as 'something_shared.txt'
+Node 1: Sharing new file 'something_shared.txt' (Path: ./something.txt, FileID: 1221300356, Size: 48974, Chunks: 48)
+Node 1: Announcing FileID 1221300356 ('something_shared.txt') (Payload size: 36)
+Node 1: Attempting to send ANNOUNCE_FILE_METADATA to Node 2
+Node 1: Comm::send - Preparing to send PacketType 8 to Node 2 (127.0.0.2:8082)
+Node 1: Comm::send - Attempting to connect to Node 2 (127.0.0.2:8082)
+Node 1: Comm::send - Connected to Node 2
+Node 1: Comm::send - Attempting to send 62 bytes to Node 2
+Node 1: Comm::send - Successfully sent 62 bytes of PacketType 8 to Node 2
+Node 1: Attempting to send ANNOUNCE_FILE_METADATA to Node 3
+Node 1: Comm::send - Preparing to send PacketType 8 to Node 3 (127.0.0.3:8083)
+Node 1: Comm::send - Attempting to connect to Node 3 (127.0.0.3:8083)
+Node 1: Comm::send - Connected to Node 3
+Node 1: Comm::send - Attempting to send 62 bytes to Node 3
+Node 1: Comm::send - Successfully sent 62 bytes of PacketType 8 to Node 3
+Node 1: Attempting to send ANNOUNCE_FILE_METADATA to Node 4
+Node 1: Comm::send - Preparing to send PacketType 8 to Node 4 (127.0.0.4:8084)
+Node 1: Comm::send - Attempting to connect to Node 4 (127.0.0.4:8084)
+Node 1: Comm::send - Connected to Node 4
+Node 1: Comm::send - Attempting to send 62 bytes to Node 4
+Node 1: Comm::send - Successfully sent 62 bytes of PacketType 8 to Node 4
+Node 1: Attempting to send ANNOUNCE_FILE_METADATA to Node 5
+Node 1: Comm::send - Preparing to send PacketType 8 to Node 5 (127.0.0.5:8085)
+Node 1: Comm::send - Attempting to connect to Node 5 (127.0.0.5:8085)
+Node 1: Comm::send - Connected to Node 5
+Node 1: Comm::send - Attempting to send 62 bytes to Node 5
+Node 1: Comm::send - Successfully sent 62 bytes of PacketType 8 to Node 5
+Node 1 (Seeder) successfully sharing. Will remain active for 180 seconds.
+Node 1 (Seeder) finished active duration.
+Node 1 P2P Sharer operations finished. Shutting down...

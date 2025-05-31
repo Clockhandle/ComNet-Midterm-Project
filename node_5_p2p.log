@@ -1,0 +1,17 @@
+--- P2P File Transfer Application (Node 5) ---
+Logging to: node_5_p2p.log
+Simulating P2P Node 5 (Automated Run)
+Node 5 listening on port 8085
+P2PFileSharer for Node 5 initialized.
+Node 5: P2PFileSharer processing loop started.
+P2PFileSharer for Node 5 started.
+Node 5 (Leecher) will attempt to download 'something_shared.txt'
+Node 5 (Leecher) waiting for metadata for 'something_shared.txt'...
+Node 5: Comm Deserialized Packet: Type=8, From=1, FileID=1221300356, PayloadSize=36
+Node 5: handleAnnounceFileMetadata called. From=1, FileID=1221300356
+Node 5: Received ANNOUNCE_FILE_METADATA from 1 for FileID 1221300356 ('something_shared.txt')
+Node 5: Processing announcement for FileID 1221300356 ('something_shared.txt') from Node 1
+Node 5: getDiscoveredFileMetadata searching for 'something_shared.txt'
+Node 5 (Leecher) found metadata for 'something_shared.txt' (FileID: 1221300356).
+Node 5: Initiating download for FileID 1221300356 ('something_shared.txt'), Size: 48974, Chunks: 48, Target: ./downloads_node_5/something_shared.txt
+Node 5: Setup download session for TransferID 1221300356, expecting 48974 bytes in 48 chunks.

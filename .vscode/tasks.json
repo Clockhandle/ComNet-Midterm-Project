@@ -2,14 +2,14 @@
     "tasks": [
         {
             "type": "cppbuild",
-            "label": "Build tokenRing",
+            "label": "Build P2PFileTransfer",
             "command": "/usr/bin/g++-13",
             "args": [
                 //"-fdiagnostics-color=always",
                 "-g",
-                "${workspaceFolder}/application/token_ring.cpp",  
+                "${workspaceFolder}/application/P2PFileTransfer.cpp",  
                 "-o",
-                "${workspaceFolder}/application/tokenRing",  
+                "${workspaceFolder}/application/P2PFileTransfer",  
                 "-lpaho-mqttpp3", "-lpaho-mqtt3a", "-lpthread",  
                 "-I${workspaceFolder}/framework", 
                 "-I${workspaceFolder}/algorithm"  
@@ -22,7 +22,7 @@
                 "kind": "build",
                 "isDefault": true
             },
-            "detail": "Task for compiling token_ring.cpp."
+            "detail": "Task for compiling P2PFileTransfer.cpp."
         }
     ],
     "version": "2.0.0"

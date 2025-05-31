@@ -6,7 +6,7 @@
             "name": "Debug Node 1",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/application/tokenRing",  
+            "program": "${workspaceFolder}/application/P2PFileTransfer",  // Changed
             "args": [ "1" ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
@@ -27,7 +27,7 @@
             "name": "Debug Node 2",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/application/tokenRing",  
+            "program": "${workspaceFolder}/application/P2PFileTransfer",  // Changed
             "args": [ "2" ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
@@ -48,7 +48,7 @@
             "name": "Debug Node 3",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/application/tokenRing",  
+            "program": "${workspaceFolder}/application/P2PFileTransfer",  // Changed
             "args": [ "3" ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
@@ -69,7 +69,7 @@
             "name": "Debug Node 4",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/application/tokenRing",  
+            "program": "${workspaceFolder}/application/P2PFileTransfer",  // Changed
             "args": [ "4" ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
@@ -90,7 +90,7 @@
             "name": "Debug Node 5",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/application/tokenRing",  
+            "program": "${workspaceFolder}/application/P2PFileTransfer",  // Changed
             "args": [ "5" ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
@@ -121,6 +121,5 @@
             ]
         }
     ],
-    "preLaunchTask": "Build tokenRing"
-
+    "preLaunchTask": "Build P2PFileTransfer"
 }

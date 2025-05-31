@@ -3,7 +3,7 @@
 #define COMM_H
 
 #include <string>
-#include <cstring>
+#include <cstring> 
 #include <queue>
 #include <mutex>
 #include <map>
@@ -11,19 +11,19 @@
 #include <memory>
 #include <condition_variable>
 #include <thread>
-#include <unistd.h>
-#include <future>
+#include <unistd.h> 
 #include <fstream>
+#include <iostream> // For std::cout, std::cerr
+#include <stdexcept> // For std::runtime_error
 
-#include "config.h"
+#include "config.h" // Assuming Config is a singleton or accessible
 
-#include <netinet/in.h>
-#include <arpa/inet.h>
+#include <netinet/in.h> // For sockaddr_in, INADDR_ANY, htons, htonl, etc.
+#include <arpa/inet.h>  // For inet_pton
+#include <sys/socket.h> // For socket, bind, listen, accept, send, recv, setsockopt, shutdown
 
-
-
-constexpr size_t FILE_CHUNK_PAYLOAD_SIZE = 1024;
-const std::chrono::seconds FILE_TRANSFER_ACK_TIMEOUT = std::chrono::seconds(10);
+// constexpr size_t FILE_CHUNK_PAYLOAD_SIZE = 1024; // Defined in P2PFileSharer or config if needed globally for chunking strategy
+// const std::chrono::seconds FILE_TRANSFER_ACK_TIMEOUT = std::chrono::seconds(10); // Related to old ACK mechanism, can be removed if initiateFileTransfer is fully removed
 
 enum class PacketType : uint16_t
 {
@@ -32,7 +32,7 @@ enum class PacketType : uint16_t
     CONTROL_END_FILE,   // DEPRECATED or for Comm internal use only
     CONTROL_ACK,        // DEPRECATED - Replaced by CHUNK_ACK for P2P
     DATA_FILE_CHUNK,    // Role: Carries a specific chunk. Packet::seq is chunk_index. Packet::transferId identifies the file.
-    CONTROL_ERROR,
+    CONTROL_ERROR,      // Payload: error message string
     CONTROL_TOKEN,      // Likely DEPRECATED if TokenRing is fully removed for file sharing
 
     // New P2P Packet Types
@@ -108,21 +108,15 @@ struct Packet
         {
             buffer.insert(buffer.end(), payload.begin(), payload.begin() + localPayloadSize);
         }
-
         return buffer;
     }
 
     bool deserializePacket(const char* data, size_t len)
     {
         size_t offset = 0;
-
         auto readFromBuffer = [&](void* dest, size_t sizeToRead) -> bool
         {
-            if(offset + sizeToRead > len)
-            {
-                return false;
-            }
-
+            if(offset + sizeToRead > len) return false;
             std::memcpy(dest, data + offset, sizeToRead);
             offset += sizeToRead;
             return true;
@@ -133,37 +127,24 @@ struct Packet
 
         if (!readFromBuffer(&net_uint32Val, sizeof(net_uint32Val))) return false;
         senderId = ntohl(net_uint32Val);
-
         if (!readFromBuffer(&net_uint32Val, sizeof(net_uint32Val))) return false;
         destId = ntohl(net_uint32Val);
-
         if (!readFromBuffer(&net_uint16Val, sizeof(net_uint16Val))) return false;
         type = static_cast<PacketType>(ntohs(net_uint16Val));
-
         if (!readFromBuffer(&net_uint32Val, sizeof(net_uint32Val))) return false;
         transferId = ntohl(net_uint32Val);
-
         if (!readFromBuffer(&net_uint32Val, sizeof(net_uint32Val))) return false;
         seq = ntohl(net_uint32Val);
-
         if (!readFromBuffer(&net_uint32Val, sizeof(net_uint32Val))) return false;
         ack = ntohl(net_uint32Val);
-
         if (!readFromBuffer(&net_uint32Val, sizeof(net_uint32Val))) return false;
         payloadSize = ntohl(net_uint32Val);
 
-
         if (payloadSize > 0)
         {
-            if (offset + payloadSize > len)
-            {
-                payload.clear();
-                return false;
-            }
+            if (offset + payloadSize > len) { payload.clear(); return false; }
             payload.assign(data + offset, data + offset + payloadSize);
-            offset += payloadSize;
-        } else
-        {
+        } else {
             payload.clear();
         }
         return true;
@@ -177,14 +158,14 @@ private:
     int id;
     int serverSocket;
     int opt = 1;
-    std::mutex socketMutex;
+    std::mutex socketMutex; // Protects m_packetQueue
     std::condition_variable m_packetAvailable;
     std::queue<Packet> m_packetQueue;
     std::thread m_receiveThread;
 
-    //file transfer
-    std::mutex m_ackMapMutex;
-    std::map<uint32_t /*transferId*/, std::promise<bool>> m_ackPromises;
+    // Removed old ACK mechanism members
+    // std::mutex m_ackMapMutex;
+    // std::map<uint32_t /*transferId*/, std::promise<bool>> m_ackPromises;
 
     struct FileReassemblyBuffer
     {
@@ -192,67 +173,72 @@ private:
         uint32_t totalSizeExpected;
         uint32_t bytesReceived;
         uint32_t numTotalChunksExpected;
-        std::map<uint32_t /*sequenceNumber*/, std::vector<char>> chunks;
+        std::map<uint32_t /*sequenceNumber (chunk_index)*/, std::vector<char>> chunks;
 
         FileReassemblyBuffer() : transferId(0), totalSizeExpected(0), bytesReceived(0), numTotalChunksExpected(0)
         {
         }
     };
-    std::mutex m_reassemblyMutex;
+    std::mutex m_reassemblyMutex; // Protects m_incomingFileTransfers
     std::map<uint32_t /*transferId*/, FileReassemblyBuffer> m_incomingFileTransfers;
 
 public:
-    Comm(int id, int port) : id(id)
+    Comm(int id, int port) : id(id), serverSocket(-1)
     {
-        if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        if ((serverSocket = ::socket(AF_INET, SOCK_STREAM, 0)) < 0)
         {
-            throw std::runtime_error("Creating socket failed");
+            throw std::runtime_error("Creating socket failed: " + std::string(strerror(errno)));
         }
 
         struct sockaddr_in servaddr;
-        memset(&servaddr, 0, sizeof(servaddr));
+        std::memset(&servaddr, 0, sizeof(servaddr));
         servaddr.sin_family = AF_INET;
         servaddr.sin_addr.s_addr = INADDR_ANY;
         servaddr.sin_port = htons(port);
 
-        if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&opt, sizeof(opt)) < 0)
+        if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
         {
-            throw std::runtime_error("Error setting socket options");
+            ::close(serverSocket);
+            throw std::runtime_error("Error setting socket options: " + std::string(strerror(errno)));
         }
 
-        if (bind(serverSocket, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
+        if (::bind(serverSocket, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
         {
-            close(serverSocket);
-            throw std::runtime_error("Bind failed");
+            ::close(serverSocket);
+            throw std::runtime_error("Bind failed: " + std::string(strerror(errno)));
         }
 
-        if (::listen(serverSocket, 5) < 0)
+        if (::listen(serverSocket, 5) < 0) // Max pending connections
         {
-            close(serverSocket);
-            throw std::runtime_error("Listen failed");
+            ::close(serverSocket);
+            throw std::runtime_error("Listen failed: " + std::string(strerror(errno)));
         }
 
         m_receiveThread = std::thread(&Comm::receiveThread, this);
+        std::cout << "Node " << this->id << " listening on port " << port << std::endl;
     }
 
     ~Comm()
     {
         if(serverSocket != -1)
         {
-            shutdown(serverSocket, SHUT_RDWR);
-            close(serverSocket);
-            serverSocket = -1;
+            // Request threads to stop if they check a flag, or rely on shutdown/close to unblock them
+            // Forcing serverSocket to -1 can help receiveThread exit its loop
+            int tempSocket = serverSocket;
+            serverSocket = -1; // Signal receiveThread to stop
+            shutdown(tempSocket, SHUT_RDWR); // Graceful shutdown to unblock accept
+            ::close(tempSocket);
         }
         if (m_receiveThread.joinable())
         {
             m_receiveThread.join();
         }
     }
-
+    
     void setupDownloadSession(uint32_t fileTransferId, uint32_t totalFileSize, uint32_t numTotalChunks)
     {
         std::lock_guard<std::mutex> lock(m_reassemblyMutex);
-        if(m_incomingFileTransfers.count(fileTransferId))
+        if (m_incomingFileTransfers.count(fileTransferId))
         {
             std::cout << "Node " << this->id << ": Download session for TransferID "
                       << fileTransferId << " already exists. Ignoring new setup." << std::endl;
@@ -271,12 +257,17 @@ public:
                   << buffer.numTotalChunksExpected << " chunks." << std::endl;
     }
 
+    // Deprecated. Used for hot-potato file transfer.
     bool initiateFileTransfer(int destId, const std::string& filePath, uint32_t transferId)
     {
+        // This method uses the old, non-P2P way of sending files.
+        // It will be replaced by P2PFileSharer logic.
+        constexpr size_t OLD_FILE_CHUNK_PAYLOAD_SIZE = 1024; // Local definition for this old method
+
         std::ifstream file(filePath, std::ios::binary | std::ios::ate);
         if(!file.is_open())
         {
-            std::cerr << "Node " << this->id << ": Failed to open file '" << filePath << "' for transfer." << std::endl;
+            std::cerr << "Node " << this->id << ": Failed to open file '" << filePath << "' for transfer (Old Method)." << std::endl;
             return false;
         }
         std::streamsize fileSize = file.tellg();
@@ -284,45 +275,39 @@ public:
 
         if(fileSize == 0)
         {
-            std::cout << "Node " << this->id << ": File '" << filePath << "' is empty. Sending START/END control packets." << std::endl;
+            std::cout << "Node " << this->id << ": File '" << filePath << "' is empty. Sending START/END control packets (Old Method)." << std::endl;
         }
 
-        std::promise<bool> ackPromise;
-        std::future<bool> ackFuture = ackPromise.get_future();
-        {
-            std::lock_guard<std::mutex> lock(m_ackMapMutex);
-            m_ackPromises[transferId] = std::move(ackPromise);
-        }
+        // Old promise logic removed
+        // std::promise<bool> ackPromise;
+        // std::future<bool> ackFuture = ackPromise.get_future();
+        // {
+        //     std::lock_guard<std::mutex> lock(m_ackMapMutex); // m_ackMapMutex removed
+        //     m_ackPromises[transferId] = std::move(ackPromise); // m_ackPromises removed
+        // }
 
         bool success = true;
-        // 2. Send CONTROL_START_FILE
         Packet startPacket;
         startPacket.senderId = this->id;
         startPacket.destId = destId;
-        startPacket.type = PacketType::CONTROL_START_FILE;
+        startPacket.type = PacketType::CONTROL_START_FILE; // Old type
         startPacket.transferId = transferId;
         uint32_t netFileSize = htonl(static_cast<uint32_t>(fileSize));
         startPacket.payload.resize(sizeof(netFileSize));
         std::memcpy(startPacket.payload.data(), &netFileSize, sizeof(netFileSize));
         startPacket.payloadSize = static_cast<uint32_t>(startPacket.payload.size());
         this->send(destId, startPacket);
-        std::cout << "Node " << this->id << ": Sent CONTROL_START_FILE for TransferID " << transferId << " (Size: " << fileSize << ")" << std::endl;
+        std::cout << "Node " << this->id << ": Sent CONTROL_START_FILE for TransferID " << transferId << " (Size: " << fileSize << ") (Old Method)" << std::endl;
 
-
-        // 3. Send DATA_FILE_CHUNKs
         if (fileSize > 0)
         {
-            char buffer[FILE_CHUNK_PAYLOAD_SIZE];
+            char chunk_buffer[OLD_FILE_CHUNK_PAYLOAD_SIZE];
             uint32_t seqNum = 0;
-            while (file.read(buffer, FILE_CHUNK_PAYLOAD_SIZE) || file.gcount() > 0)
+            while (file.read(chunk_buffer, OLD_FILE_CHUNK_PAYLOAD_SIZE) || file.gcount() > 0)
             {
                 std::streamsize bytesRead = file.gcount();
-                if (bytesRead == 0 && !file.eof())
-                { // Error during read
-                     std::cerr << "Node " << this->id << ": File read error on '" << filePath << "' for TransferID " << transferId << std::endl;
-                     success = false; break;
-                }
-                if (bytesRead == 0 && file.eof()) break; // Normal EOF after full chunk read
+                if (bytesRead == 0 && !file.eof()) { success = false; break; }
+                if (bytesRead == 0 && file.eof()) break;
 
                 Packet chunkPacket;
                 chunkPacket.senderId = this->id;
@@ -330,114 +315,34 @@ public:
                 chunkPacket.type = PacketType::DATA_FILE_CHUNK;
                 chunkPacket.transferId = transferId;
                 chunkPacket.seq = seqNum++;
-                chunkPacket.payload.assign(buffer, buffer + bytesRead);
+                chunkPacket.payload.assign(chunk_buffer, chunk_buffer + bytesRead);
                 chunkPacket.payloadSize = static_cast<uint32_t>(chunkPacket.payload.size());
                 this->send(destId, chunkPacket);
-                std::cout << "Node " << this->id << ": Sent CHUNK " << chunkPacket.seq << " for TransferID " << transferId << " (Size: " << bytesRead << ")" << std::endl;
-
-                if (bytesRead < FILE_CHUNK_PAYLOAD_SIZE && !file.eof())
-                {
-                    std::cerr << "Node " << this->id << ": Read less than chunk size unexpectedly for TransferID " << transferId << std::endl;
-                }
+                // std::cout << "Node " << this->id << ": Sent CHUNK " << chunkPacket.seq << " for TransferID " << transferId << " (Size: " << bytesRead << ") (Old Method)" << std::endl;
             }
-            if (file.bad())
-            {
-                std::cerr << "Node " << this->id << ": File stream bad state after reading for TransferID " << transferId << std::endl;
-                success = false;
-            }
+            if (file.bad()) { success = false; }
         }
-
         file.close();
-
-        if (!success)
-        {
-            std::lock_guard<std::mutex> lock(m_ackMapMutex);
-            auto it = m_ackPromises.find(transferId);
-            if (it != m_ackPromises.end())
-            {
-                m_ackPromises.erase(it);
-            }
+        if (!success) {
+            std::cerr << "Node " << this->id << ": Error during file read for TransferID " << transferId << " (Old Method)" << std::endl;
             return false;
         }
 
-        // 4. Send CONTROL_END_FILE
         Packet endPacket;
         endPacket.senderId = this->id;
         endPacket.destId = destId;
-        endPacket.type = PacketType::CONTROL_END_FILE;
+        endPacket.type = PacketType::CONTROL_END_FILE; // Old type
         endPacket.transferId = transferId;
-        endPacket.payloadSize = 0;
         this->send(destId, endPacket);
-        std::cout << "Node " << this->id << ": Sent CONTROL_END_FILE for TransferID " << transferId << std::endl;
+        std::cout << "Node " << this->id << ": Sent CONTROL_END_FILE for TransferID " << transferId << " (Old Method)" << std::endl;
 
-        // 5. Wait for ACK
-        // std::cout << "Node " << this->id << ": Waiting for ACK for TransferID " << transferId << "..." << std::endl; // Optional: Can be verbose
-        std::future_status status = ackFuture.wait_for(FILE_TRANSFER_ACK_TIMEOUT);
-
-        bool ackReceivedAndValid = false;
-        if (status == std::future_status::ready)
-        {
-            ackReceivedAndValid = ackFuture.get();
-            if(ackReceivedAndValid)
-            {
-                 std::cout << "Node " << this->id << ": ACK received for TransferID " << transferId << std::endl;
-            }
-            else
-            {
-                std::cerr << "Node " << this->id << ": ACK received but was invalid/negative for TransferID " << transferId << std::endl;
-            }
-        }
-        else if (status == std::future_status::timeout)
-        {
-            std::cerr << "Node " << this->id << ": Timeout waiting for ACK for TransferID " << transferId << std::endl;
-        }
-        else
-        {
-            std::cerr << "Node " << this->id << ": Future was deferred for ACK, TransferID " << transferId << std::endl;
-        }
-
-        // 6. Cleanup promise
-        {
-            std::lock_guard<std::mutex> lock(m_ackMapMutex);
-            m_ackPromises.erase(transferId);
-        }
-        return ackReceivedAndValid;
-    }
-
-    void send(int destId, const std::string& message) // Kept for potential other uses, but not for primary packet transfer
-    {
-        auto nodeConfigsMap = config.getNodeConfigs();
-        auto it = nodeConfigsMap.find(destId);
-        if (it == nodeConfigsMap.end())
-        {
-            std::cerr << "Node " << id << ": Destination ID " << destId << " not found in config for string send." << std::endl;
-            return;
-        }
-
-        int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
-        if (clientSocket < 0)
-        {
-            // std::cerr << "Node " << id << ": Failed to create client socket for string send." << std::endl; // Can be verbose
-            close(clientSocket); // Ensure close even if it wasn't opened.
-            return;
-        }
-        sockaddr_in destIp;
-        destIp.sin_family = AF_INET;
-        destIp.sin_port = htons(it->second.port);
-        inet_pton(AF_INET, it->second.ip.c_str(), &destIp.sin_addr);
-        if (connect(clientSocket, (struct sockaddr*)&destIp, sizeof(destIp)) < 0)
-        {
-            // std::cerr << "Node " << id << ": Connection failed to ID " << destId << " for string send." << std::endl; // Can be verbose
-            close(clientSocket);
-            return;
-        }
-        if (::send(clientSocket, message.c_str(), message.size(), 0) < 0)
-        {
-            // std::cerr << "Node " << id << ": Failed to send string data to ID " << destId << std::endl; // Can be verbose
-            close(clientSocket);
-            return;
-        }
-        close(clientSocket);
+        // Old ACK waiting logic removed. This method will likely not function as expected for ACK.
+        // const std::chrono::seconds FILE_TRANSFER_ACK_TIMEOUT_LOCAL = std::chrono::seconds(10);
+        // std::future_status status = ackFuture.wait_for(FILE_TRANSFER_ACK_TIMEOUT_LOCAL);
+        // bool ackReceivedAndValid = (status == std::future_status::ready && ackFuture.get());
+        // if (!ackReceivedAndValid) std::cerr << "Node " << this->id << ": ACK issue for TransferID " << transferId << " (Old Method)" << std::endl;
+        // return ackReceivedAndValid;
+        return true; // Placeholder: Old ACK logic is non-functional without m_ackPromises
     }
 
     void send(int destId, const Packet& packet)
@@ -450,65 +355,72 @@ public:
             return;
         }
 
-        int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
-        if(clientSocket < 0)
-        {
-            std::cerr << "Node " << id << ": Failed to create client socket." << std::endl;
+        std::cout << "Node " << id << ": Comm::send - Preparing to send PacketType " << static_cast<int>(packet.type)
+                  << " to Node " << destId << " (" << it->second.ip << ":" << it->second.port << ")" << std::endl;
+
+        int clientSocket = ::socket(AF_INET, SOCK_STREAM, 0);
+        if(clientSocket < 0) { std::cerr << "Node " << id << ": Failed to create client socket: " << strerror(errno) << std::endl; return; }
+
+        sockaddr_in destAddr;
+        std::memset(&destAddr, 0, sizeof(destAddr));
+        destAddr.sin_family = AF_INET;
+        destAddr.sin_port = htons(it->second.port);
+        if (inet_pton(AF_INET, it->second.ip.c_str(), &destAddr.sin_addr) <= 0) {
+            std::cerr << "Node " << id << ": Invalid address/ Address not supported for ID " << destId << ": " << strerror(errno) << std::endl;
+            ::close(clientSocket);
             return;
         }
 
-        sockaddr_in destIp;
-        destIp.sin_family = AF_INET;
-        destIp.sin_port = htons(it->second.port);
-        inet_pton(AF_INET, it->second.ip.c_str(), &destIp.sin_addr);
-        if(connect(clientSocket, (struct sockaddr*)&destIp, sizeof(destIp)) < 0)
+        std::cout << "Node " << id << ": Comm::send - Attempting to connect to Node " << destId << " (" << it->second.ip << ":" << it->second.port << ")" << std::endl;
+        if(connect(clientSocket, (struct sockaddr*)&destAddr, sizeof(destAddr)) < 0)
         {
-            std::cerr << "Node " << id << ": Connection failed to ID " << destId << std::endl;
-            close(clientSocket);
+            // std::cerr << "Node " << id << ": Connection failed to ID " << destId << " (" << it->second.ip << ":" << it->second.port << "): " << strerror(errno) << std::endl; // Can be verbose
+            ::close(clientSocket);
             return;
         }
 
+        std::cout << "Node " << id << ": Comm::send - Connected to Node " << destId << std::endl;
         std::vector<char> serializedData = packet.serializePacket();
-        if(serializedData.empty() && packet.payloadSize > 0)
-        {
-            std::cerr << "Node " << id << ": Packet serialization resulted in empty buffer for non-empty payload." << std::endl;
-            close(clientSocket);
-            return;
+        if(serializedData.empty() && packet.payloadSize > 0) { // Check if payload was expected but serialization failed
+             std::cerr << "Node " << id << ": Packet serialization resulted in empty buffer for non-empty payload." << std::endl;
+             ::close(clientSocket);
+             return;
         }
-        if(serializedData.empty() && packet.type == PacketType::UNDEFINED && packet.senderId == 0)
-        {
-            // This might indicate an uninitialized packet, could be an error or intentional.
-            // std::cout << "Node " << id << ": Attempting to send empty/default initialized packet." << std::endl;
-        }
+
 
         ssize_t totalBytesSent = 0;
-        while(totalBytesSent < serializedData.size())
+        size_t dataSize = serializedData.size();
+        const char* dataPtr = serializedData.data();
+
+        std::cout << "Node " << id << ": Comm::send - Attempting to send " << dataSize << " bytes to Node " << destId << std::endl;
+        while(totalBytesSent < dataSize)
         {
-            ssize_t bytesSend = ::send(clientSocket, serializedData.data() + totalBytesSent, serializedData.size() - totalBytesSent, 0);
-            if (bytesSend < 0)
+            ssize_t bytesSent = ::send(clientSocket, dataPtr + totalBytesSent, dataSize - totalBytesSent, 0);
+            if (bytesSent < 0)
             {
-                if (errno == EINTR) continue;
-                std::cerr << "Node " << id << ": Failed to send packet data to ID " << destId << " (errno: " << errno << ")" << std::endl;
-                close(clientSocket);
+                if (errno == EINTR) continue; // Interrupted by signal, try again
+                std::cerr << "Node " << id << ": Failed to send packet data to ID " << destId << ": " << strerror(errno) << std::endl;
+                ::close(clientSocket);
                 return;
             }
-            if (bytesSend == 0 && serializedData.size() > 0)
-            {
-                std::cerr << "Node " << id << ": Sent 0 bytes when trying to send packet data to ID " << destId << std::endl;
-                close(clientSocket);
+            if (bytesSent == 0 && dataSize > 0) { // Should not happen with TCP stream unless connection closed by peer during send
+                std::cerr << "Node " << id << ": Sent 0 bytes unexpectedly to ID " << destId << std::endl;
+                ::close(clientSocket);
                 return;
             }
-            totalBytesSent += bytesSend;
+            totalBytesSent += bytesSent;
         }
 
-        // std::cout << "called send from comm successfully" << std::endl; // Can be very verbose
-        close(clientSocket);
+        std::cout << "Node " << id << ": Comm::send - Successfully sent " << totalBytesSent << " bytes of PacketType " 
+                  << static_cast<int>(packet.type) << " to Node " << destId << std::endl;
+        ::close(clientSocket);
     }
 
     bool getMessage(Packet& outPacket)
     {
         std::unique_lock<std::mutex> lock(socketMutex);
         m_packetAvailable.wait(lock, [this]{ return !m_packetQueue.empty(); });
+        if (m_packetQueue.empty()) return false; // Should not happen due to predicate, but good practice
         outPacket = m_packetQueue.front();
         m_packetQueue.pop();
         return true;
@@ -517,17 +429,18 @@ public:
 private:
     void receiveThread()
     {
-        const size_t FIXED_HEADER_SIZE = 26; // sender(4) + dest(4) + type(2) + transferId(4) + seq(4) + ack(4) + payloadSize(4)
-        while (true) // Main accept loop
+        const size_t FIXED_HEADER_SIZE = 26;
+        while (true)
         {
-            if (serverSocket == -1) break;
+            if (serverSocket == -1) break; 
 
-            int clientSocket = accept(serverSocket, nullptr, nullptr);
+            int clientSocket = ::accept(serverSocket, nullptr, nullptr);
             if (clientSocket < 0)
             {
                 if (errno == EINTR) continue;
                 if (serverSocket == -1) break;
                 // std::cerr << "Node " << this->id << ": accept failed (errno: " << errno << ")." << std::endl; // Can be verbose
+                // usleep(10000); // Avoid busy-looping on persistent accept errors
                 continue;
             }
 
@@ -535,13 +448,16 @@ private:
             ssize_t totalHeaderBytesRead = 0;
             while(totalHeaderBytesRead < FIXED_HEADER_SIZE)
             {
-                ssize_t bytesRead = recv(clientSocket, headerBuffer.data() + totalHeaderBytesRead, FIXED_HEADER_SIZE - totalHeaderBytesRead, 0);
-                if(bytesRead < 0)
-                {
-                    if(errno == EINTR) continue;
+                ssize_t bytesRead = ::recv(clientSocket, headerBuffer.data() + totalHeaderBytesRead, FIXED_HEADER_SIZE - totalHeaderBytesRead, 0);
+                if(bytesRead < 0) { 
+                    if (errno == EINTR) continue;
+                    // std::cerr << "Node " << this->id << ": recv header failed (errno: " << errno << ")." << std::endl;
                     goto endClientHandling_ReceiveThread;
                 }
-                if(bytesRead == 0) goto endClientHandling_ReceiveThread;
+                if(bytesRead == 0) { // Connection closed by peer
+                    // std::cout << "Node " << this->id << ": Connection closed by peer during header recv." << std::endl;
+                    goto endClientHandling_ReceiveThread;
+                }
                 totalHeaderBytesRead += bytesRead;
             }
 
@@ -558,16 +474,22 @@ private:
                     ssize_t totalPayloadBytesRead = 0;
                     while(totalPayloadBytesRead < hostPayloadSize)
                     {
-                        ssize_t bytesRead = recv(clientSocket, payloadBuffer.data() + totalPayloadBytesRead, hostPayloadSize - totalPayloadBytesRead, 0);
-                        if(bytesRead < 0)
-                        {
-                            if(errno == EINTR) continue;
+                        ssize_t bytesRead = ::recv(clientSocket, payloadBuffer.data() + totalPayloadBytesRead, hostPayloadSize - totalPayloadBytesRead, 0);
+                        if(bytesRead < 0) {
+                            if (errno == EINTR) continue;
+                            // std::cerr << "Node " << this->id << ": recv payload failed (errno: " << errno << ")." << std::endl;
                             goto endClientHandling_ReceiveThread;
                         }
-                        if(bytesRead == 0) goto endClientHandling_ReceiveThread;
+                        if(bytesRead == 0) { // Connection closed by peer
+                            // std::cout << "Node " << this->id << ": Connection closed by peer during payload recv." << std::endl;
+                            goto endClientHandling_ReceiveThread;
+                        }
                         totalPayloadBytesRead += bytesRead;
                     }
-                    if(totalPayloadBytesRead != hostPayloadSize) goto endClientHandling_ReceiveThread;
+                    if(totalPayloadBytesRead != hostPayloadSize) {
+                        // std::cerr << "Node " << this->id << ": Payload size mismatch. Expected " << hostPayloadSize << " got " << totalPayloadBytesRead << std::endl;
+                        goto endClientHandling_ReceiveThread;
+                    }
                 }
 
                 std::vector<char> fullPacketBuffer = headerBuffer;
@@ -579,11 +501,13 @@ private:
                 Packet receivedPacket;
                 if(receivedPacket.deserializePacket(fullPacketBuffer.data(), fullPacketBuffer.size()))
                 {
+                    std::cout << "Node " << this->id << ": Comm Deserialized Packet: Type=" << static_cast<int>(receivedPacket.type)
+                              << ", From=" << receivedPacket.senderId << ", FileID=" << receivedPacket.transferId 
+                              << ", PayloadSize=" << receivedPacket.payloadSize << std::endl;
+                    bool packetHandledInternally = false; 
+
                     if (receivedPacket.type == PacketType::DATA_FILE_CHUNK)
                     {
-                        // This block processes the chunk data for reassembly.
-                        // The original DATA_FILE_CHUNK packet will still be queued for P2PFileSharer
-                        // so it knows to send a CHUNK_ACK.
                         std::lock_guard<std::mutex> lock(m_reassemblyMutex);
                         auto it = m_incomingFileTransfers.find(receivedPacket.transferId);
                         if (it != m_incomingFileTransfers.end())
@@ -598,76 +522,73 @@ private:
                                           << " (Size: " << receivedPacket.payloadSize
                                           << ", Total Chunks Stored: " << buffer.chunks.size() << "/" << buffer.numTotalChunksExpected
                                           << ", Total Bytes: " << buffer.bytesReceived << "/" << buffer.totalSizeExpected << ")" << std::endl;
-                                // Check for completion
+
                                 if (buffer.chunks.size() == buffer.numTotalChunksExpected && buffer.numTotalChunksExpected > 0)
                                 {
                                     std::vector<char> reassembledFilePayload;
                                     reassembledFilePayload.reserve(buffer.totalSizeExpected);
                                     bool allChunksValid = true;
                                     for (uint32_t i = 0; i < buffer.numTotalChunksExpected; ++i) {
-                                        if (buffer.chunks.count(i)) 
-                                        {
+                                        if (buffer.chunks.count(i)) {
                                             reassembledFilePayload.insert(reassembledFilePayload.end(), buffer.chunks[i].begin(), buffer.chunks[i].end());
-                                        } 
-                                        else 
-                                        {
+                                        } else {
                                             std::cerr << "Node " << this->id << ": CRITICAL - Missing chunk " << i << " during final reassembly for FileID " << buffer.transferId << std::endl;
                                             allChunksValid = false;
                                             break;
                                         }
                                     }
 
-                                        if (allChunksValid && reassembledFilePayload.size() == buffer.totalSizeExpected) {
+                                    if (allChunksValid && reassembledFilePayload.size() == buffer.totalSizeExpected) {
                                         Packet internalCompletePacket;
                                         internalCompletePacket.type = PacketType::INTERNAL_FULL_FILE_REASSEMBLED;
                                         internalCompletePacket.transferId = buffer.transferId;
                                         internalCompletePacket.payload = reassembledFilePayload;
                                         internalCompletePacket.payloadSize = static_cast<uint32_t>(reassembledFilePayload.size());
-                                        internalCompletePacket.senderId = 0; // System internal
+                                        internalCompletePacket.senderId = 0; 
                                         internalCompletePacket.destId = this->id;
 
-                                        // Queue the special "full file reassembled" packet
                                         {
                                             std::lock_guard<std::mutex> qLock(socketMutex);
-                                            m_packetQueue.push(internalCompletePacket);
+                                            m_packetQueue.push(internalCompletePacket); 
                                         }
-                                        // Also queue the original DATA_FILE_CHUNK so P2PFileSharer can ACK it
-                                        // (This happens because packetHandledInternally remains false)
-
-                                        m_packetAvailable.notify_one(); // Notify for both packets potentially
                                         std::cout << "Node " << this->id << ": Reassembled FileID " << buffer.transferId
-                                                << " (Size: " << internalCompletePacket.payloadSize << ") and queued INTERNAL_FULL_FILE_REASSEMBLED." << std::endl;
-                                        
-                                        m_incomingFileTransfers.erase(it); // Clean up the buffer for this completed transfer
+                                                  << " (Size: " << internalCompletePacket.payloadSize << ") and queued INTERNAL_FULL_FILE_REASSEMBLED." << std::endl;
+                                        m_incomingFileTransfers.erase(it);
                                     } else if (allChunksValid && reassembledFilePayload.size() != buffer.totalSizeExpected) {
-                                        std::cerr << "Node " << this->id << ": Reassembled size mismatch for FileID " << buffer.transferId
-                                                << ". Expected " << buffer.totalSizeExpected << " got " << reassembledFilePayload.size() << std::endl;
+                                         std::cerr << "Node " << this->id << ": Reassembled size mismatch for FileID " << buffer.transferId
+                                                   << ". Expected " << buffer.totalSizeExpected << " got " << reassembledFilePayload.size() << std::endl;
                                     }
                                 }
                             } else if (buffer.chunks.count(receivedPacket.seq)) {
-                                std::cout << "Node " << this->id << ": Duplicate CHUNK " << receivedPacket.seq
-                                        << " for FileID " << receivedPacket.transferId << std::endl;
+                                // std::cout << "Node " << this->id << ": Duplicate CHUNK " << receivedPacket.seq
+                                //           << " for FileID " << receivedPacket.transferId << std::endl; // Can be verbose
                             }
-                            // packetHandledInternally remains false for DATA_FILE_CHUNK,
-                            // so it will be queued for P2PFileSharer to handle (e.g., send CHUNK_ACK).
                         }
                         else
                         {
-                            std::cerr << "Node " << this->id << ": Received DATA_FILE_CHUNK for unknown/uninitialized FileID "
-                                    << receivedPacket.transferId << std::endl;
-                            // Still queue it; P2PFileSharer might want to see it, though it's likely an error.
+                            // std::cerr << "Node " << this->id << ": Received DATA_FILE_CHUNK for unknown/uninitialized FileID "
+                            //           << receivedPacket.transferId << std::endl; // Can be verbose
                         }
+                    }
+                    
+                    if (!packetHandledInternally)
+                    {
+                        {
+                            std::lock_guard<std::mutex> qLock(socketMutex);
+                            m_packetQueue.push(receivedPacket); 
+                        }
+                        m_packetAvailable.notify_one();
                     }
                 }
                 else
                 {
                     std::cerr << "Node " << this->id << " failed to deserialize packet from " << fullPacketBuffer.size() << " bytes." << std::endl;
                 }
-            }
+            } 
+
             endClientHandling_ReceiveThread:
-                close(clientSocket);
-        }
-        // std::cout << "Node " << this->id << ": Receive thread exiting." << std::endl; // Can be verbose
+                ::close(clientSocket);
+        } 
     }
 };
 
