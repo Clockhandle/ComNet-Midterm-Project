@@ -4,14 +4,14 @@ Simulating P2P Node 2 (Automated Run)
 Node 2 listening on port 8082
 P2PFileSharer for Node 2 initialized.
 Node 2: P2PFileSharer processing loop started.
-2 started.
+P2PFileSharer for Node 2 started.
 Node 2 (Leecher) will attempt to download 'something_shared.txt'
 Node 2 (Leecher) waiting for metadata for 'something_shared.txt'...
-Node 2: Comm Deserialized Packet: Type=8, From=1, FileID=1221300356, PayloadSize=36
-Node 2: handleAnnounceFileMetadata called. From=1, FileID=1221300356
-Node 2: Received ANNOUNCE_FILE_METADATA from 1 for FileID 1221300356 ('something_shared.txt')
-Node 2: Processing announcement for FileID 1221300356 ('something_shared.txt') from Node 1
+Node 2: Comm Deserialized Packet: Type=8, From=1, FileID=4243529603, PayloadSize=36
+Node 2: handleAnnounceFileMetadata called. From=1, FileID=4243529603
+Node 2: Received ANNOUNCE_FILE_METADATA from 1 for FileID 4243529603 ('something_shared.txt')
+Node 2: Processing announcement for FileID 4243529603 ('something_shared.txt') from Node 1
 Node 2: getDiscoveredFileMetadata searching for 'something_shared.txt'
-Node 2 (Leecher) found metadata for 'something_shared.txt' (FileID: 1221300356).
-Node 2: Initiating download for FileID 1221300356 ('something_shared.txt'), Size: 48974, Chunks: 48, Target: ./downloads_node_2/something_shared.txt
-Node 2: Setup download session for TransferID 1221300356, expecting 48974 bytes in 48 chunks.
+Node 2 (Leecher) found metadata for 'something_shared.txt' (FileID: 4243529603).
+Node 2: Initiating download for FileID 4243529603 ('something_shared.txt'), Size: 48974, Chunks: 48, Target: ./downloads_node_2/something_shared.txt
+Node 2: Setup download session for TransferID 4243529603, expecting 48974 bytes in 48 chunks.

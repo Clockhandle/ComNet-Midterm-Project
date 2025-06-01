@@ -471,8 +471,8 @@ private:
         uint32_t requestedChunkIndex = packet.seq;
         int requesterId = packet.senderId;
 
-        // std::cout << "Node " << m_nodeId << ": Received REQUEST_FILE_CHUNK from " << requesterId 
-        //           << " for FileID " << requestedFileId << " Chunk " << requestedChunkIndex << std::endl;
+        std::cout << "Node " << m_nodeId << ": Received REQUEST_FILE_CHUNK from " << requesterId 
+                  << " for FileID " << requestedFileId << " Chunk " << requestedChunkIndex << std::endl;
 
         FileMetadata metadata;
         bool fileAvailable = false;
@@ -544,8 +544,8 @@ private:
         dataPacket.payloadSize = static_cast<uint32_t>(chunkData.size());
 
         m_comm.send(requesterId, dataPacket);
-        // std::cout << "Node " << m_nodeId << ": Sent DATA_FILE_CHUNK for FileID " << requestedFileId 
-        //           << " Chunk " << requestedChunkIndex << " (Size: " << chunkData.size() << ") to Node " << requesterId << std::endl;
+        std::cout << "Node " << m_nodeId << ": Sent DATA_FILE_CHUNK for FileID " << requestedFileId 
+                  << " Chunk " << requestedChunkIndex << " (Size: " << chunkData.size() << ") to Node " << requesterId << std::endl;
     }
     void handleDataFileChunk(const Packet& packet) {
         // Send CHUNK_ACK first
@@ -556,7 +556,7 @@ private:
         ackPacket.transferId = packet.transferId;
         ackPacket.seq = packet.seq; 
         m_comm.send(ackPacket.destId, ackPacket);
-        // std::cout << "Node " << m_nodeId << ": Sent CHUNK_ACK for FileID " << packet.transferId << " Chunk " << packet.seq << " to Node " << packet.senderId << std::endl;
+        std::cout << "Node " << m_nodeId << ": Sent CHUNK_ACK for FileID " << packet.transferId << " Chunk " << packet.seq << " to Node " << packet.senderId << std::endl;
 
         bool allChunksNowReceivedByP2P = false;
         bool startRequestingMore = false;
@@ -566,24 +566,24 @@ private:
             if (it != m_ongoingDownloads.end()) {
                 DownloadState& ds = it->second;
                 if (ds.downloadCompleteNotified) {
-                    // std::cout << "Node " << m_nodeId << ": DATA_FILE_CHUNK for already completed/notified download " << packet.transferId << std::endl;
+                    std::cout << "Node " << m_nodeId << ": DATA_FILE_CHUNK for already completed/notified download " << packet.transferId << std::endl;
                     return; // Already handled or too late
                 }
 
-                bool wasNeeded = ds.neededChunks.count(packet.seq);
-                bool wasRequested = ds.requestedChunks.count(packet.seq);
+                // bool wasNeeded = ds.neededChunks.count(packet.seq);
+                // bool wasRequested = ds.requestedChunks.count(packet.seq);
 
                 if (ds.receivedChunks.count(packet.seq)) {
-                    // std::cout << "Node " << m_nodeId << ": Duplicate DATA_FILE_CHUNK for FileID " 
-                    //           << packet.transferId << " Chunk " << packet.seq << std::endl;
+                    std::cout << "Node " << m_nodeId << ": Duplicate DATA_FILE_CHUNK for FileID " 
+                              << packet.transferId << " Chunk " << packet.seq << std::endl;
                 } else {
                     ds.receivedChunks.insert(packet.seq);
                     ds.requestedChunks.erase(packet.seq); 
                     ds.neededChunks.erase(packet.seq);    
                     
-                    // std::cout << "Node " << m_nodeId << ": Processed DATA_FILE_CHUNK for FileID " << packet.transferId 
-                    //           << " Chunk " << packet.seq << ". Received: " << ds.receivedChunks.size() 
-                    //           << "/" << ds.metadata.numTotalChunks << std::endl;
+                    std::cout << "Node " << m_nodeId << ": Processed DATA_FILE_CHUNK for FileID " << packet.transferId 
+                              << " Chunk " << packet.seq << ". Received: " << ds.receivedChunks.size() 
+                              << "/" << ds.metadata.numTotalChunks << std::endl;
 
                     if (ds.receivedChunks.size() == ds.metadata.numTotalChunks) {
                         allChunksNowReceivedByP2P = true; 
@@ -600,7 +600,6 @@ private:
             }
         } // m_downloadsMutex released
 
-        // If not all chunks are received yet by P2P, and we want to proactively request more:
         if (startRequestingMore && !allChunksNowReceivedByP2P) {
             requestNeededChunks(packet.transferId, false); // false for subsequent calls
         }
@@ -609,8 +608,8 @@ private:
         // For a seeder: This acknowledges that a chunk they sent was received.
         // Can be used for flow control, reliability, or stats.
         // For a leecher: This acknowledges a CHUNK_ACK they sent (unlikely to be used this way).
-        // std::cout << "Node " << m_nodeId << ": Received CHUNK_ACK from " << packet.senderId 
-        //           << " for TransferID " << packet.transferId << " Chunk " << packet.seq << std::endl;
+        std::cout << "Node " << m_nodeId << ": Received CHUNK_ACK from " << packet.senderId 
+                  << " for TransferID " << packet.transferId << " Chunk " << packet.seq << std::endl;
         
         // TODO: If implementing advanced seeder logic (e.g. tracking outstanding chunks sent)
     }
@@ -770,6 +769,7 @@ private:
         return chunkBuffer;
     }
     void requestNeededChunks(uint32_t fileId, bool isInitialCall) {
+        std::cout << "Node " << m_nodeId << ": requestNeededChunks called for FileID " << fileId << (isInitialCall ? " (Initial Call)" : " (Subsequent Call)") << std::endl;
         std::vector<uint32_t> chunksToRequestNow;
         int providerNodeIdForRequests = -1;
         DownloadState* currentDownloadState = nullptr;
@@ -778,12 +778,18 @@ private:
             std::lock_guard<std::mutex> dlLock(m_downloadsMutex);
             auto it = m_ongoingDownloads.find(fileId);
             if (it == m_ongoingDownloads.end() || it->second.downloadCompleteNotified) {
+                if (it == m_ongoingDownloads.end()) std::cout << "Node " << m_nodeId << ": requestNeededChunks - No ongoing download for FileID " << fileId << std::endl;
+                else if (it->second.downloadCompleteNotified) std::cout << "Node " << m_nodeId << ": requestNeededChunks - Download already complete for FileID " << fileId << std::endl;
                 return; 
             }
             DownloadState& ds = it->second;
             currentDownloadState = &ds;
 
-            if (ds.neededChunks.empty() && ds.requestedChunks.empty() && !ds.downloadCompleteNotified) {
+            if (ds.neededChunks.empty() && !ds.downloadCompleteNotified) {
+                std::cout << "Node " << m_nodeId << ": requestNeededChunks - No more chunks strictly 'needed' for FileID " << fileId << ". Needed: 0, Requested: " << ds.requestedChunks.size() << ", Received: " << ds.receivedChunks.size() << std::endl;
+                if (ds.receivedChunks.size() != ds.metadata.numTotalChunks) {
+                    std::cout << "Node " << m_nodeId << ": requestNeededChunks - All chunks are requested or received, but download not complete. Waiting." << std::endl;
+                }
                 return; 
             }
 
