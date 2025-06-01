@@ -3,12 +3,11 @@ Logging to: node_1_p2p.log
 Simulating P2P Node 1 (Automated Run)
 Node 1 listening on port 8081
 P2PFileSharer for Node 1 initialized.
+Node 1: P2PFileSharer processing loop started.
 P2PFileSharer for Node 1 started.
 Node 1 (Seeder) starting to share './something.txt' as 'something_shared.txt'
-d.
-Node 1 (Seeder) starting to share './something.txt' as 'something_shared.txt'
-Node 1: Sharing new file 'something_shared.txt' (Path: ./something.txt, FileID: 4243529603, Size: 48974, Chunks: 48)
-Node 1: Announcing FileID 4243529603 ('something_shared.txt') (Payload size: 36)
+Node 1: Sharing new file 'something_shared.txt' (Path: ./something.txt, FileID: 345854136, Size: 48974, Chunks: 48)
+Node 1: Announcing FileID 345854136 ('something_shared.txt') (Payload size: 36)
 Node 1: Attempting to send ANNOUNCE_FILE_METADATA to Node 2
 Node 1: Comm::send - Preparing to send PacketType 8 to Node 2 (127.0.0.2:8082)
 Node 1: Comm::send - Attempting to connect to Node 2 (127.0.0.2:8082)
@@ -34,5 +33,3 @@ Node 1: Comm::send - Connected to Node 5
 Node 1: Comm::send - Attempting to send 62 bytes to Node 5
 Node 1: Comm::send - Successfully sent 62 bytes of PacketType 8 to Node 5
 Node 1 (Seeder) successfully sharing. Will remain active for 180 seconds.
-Node 1 (Seeder) finished active duration.
-Node 1 P2P Sharer operations finished. Shutting down...

@@ -776,6 +776,7 @@ private:
 
         { // Scope for locks
             std::lock_guard<std::mutex> dlLock(m_downloadsMutex);
+            std::cout << "Node " << m_nodeId << ": entered lock in requestNeededChunks" << std::endl;
             auto it = m_ongoingDownloads.find(fileId);
             if (it == m_ongoingDownloads.end() || it->second.downloadCompleteNotified) {
                 if (it == m_ongoingDownloads.end()) std::cout << "Node " << m_nodeId << ": requestNeededChunks - No ongoing download for FileID " << fileId << std::endl;
