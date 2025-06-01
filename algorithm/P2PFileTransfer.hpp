@@ -282,57 +282,58 @@ public:
         std::ifstream existingFileStream(targetFilePath, std::ios::binary | std::ios::ate);
         if (existingFileStream.is_open()) {
             if (static_cast<uint32_t>(existingFileStream.tellg()) == metadataToDownload.totalSize) {
-                existingFileStream.close();
                 std::cout << "Node " << m_nodeId << ": File '" << metadataToDownload.filename 
-                          << "' (FileID: " << metadataToDownload.fileId << ") already exists at " << targetFilePath 
-                          << " with correct size. Assuming complete." << std::endl;
-                // Optionally, ensure its state is marked as complete if tracked
-                std::lock_guard<std::mutex> lock(m_downloadsMutex);
-                auto it_ds = m_ongoingDownloads.find(metadataToDownload.fileId);
-                if (it_ds != m_ongoingDownloads.end()) {
-                    it_ds->second.downloadCompleteNotified = true;
-                } else {
-                    // If not tracked, we could add a minimal completed state, but for now, just return true.
-                }
-                return true; // Indicate success as file is present and seems correct
+                          << "' already exists with correct size. Assuming download complete." << std::endl;
+                // Optionally, still mark it in ongoingDownloads as complete or re-share
+                // For now, just return true indicating it's "available"
+                return true; 
             }
             existingFileStream.close();
         }
         
-        std::lock_guard<std::mutex> lock(m_downloadsMutex); 
-        auto it_ds = m_ongoingDownloads.find(metadataToDownload.fileId);
-        if (it_ds != m_ongoingDownloads.end()) {
-            if (it_ds->second.downloadCompleteNotified) {
-                std::cout << "Node " << m_nodeId << ": Download for FileID " << metadataToDownload.fileId 
-                          << " ('" << metadataToDownload.filename << "') was already completed in this session." << std::endl;
-                return true; // Already marked as complete
+        uint32_t fileIdToDownload = metadataToDownload.fileId; // Use a local var for clarity
+
+        // --- Critical section for m_ongoingDownloads modification ---
+        {
+            std::lock_guard<std::mutex> lock(m_downloadsMutex); 
+            auto it_ds = m_ongoingDownloads.find(fileIdToDownload);
+            if (it_ds != m_ongoingDownloads.end()) {
+                if (it_ds->second.downloadCompleteNotified) {
+                    std::cout << "Node " << m_nodeId << ": Download for FileID " << fileIdToDownload 
+                              << " ('" << metadataToDownload.filename << "') was previously completed. Re-initiating." << std::endl;
+                    // Reset state for re-download if necessary, or just proceed to create new state
+                    // For simplicity, we'll overwrite, assuming a new download intent.
+                } else {
+                    std::cout << "Node " << m_nodeId << ": Download for FileID " << fileIdToDownload 
+                              << " ('" << metadataToDownload.filename << "') is already in progress (and not yet complete)." << std::endl;
+                    return false; // Don't start a new one if one is active and not complete
+                }
             }
-            std::cout << "Node " << m_nodeId << ": Download for FileID " << metadataToDownload.fileId 
-                      << " ('" << metadataToDownload.filename << "') is already in progress (and not yet complete)." << std::endl;
-            return false; // In progress but not yet complete
-        }
 
+            std::cout << "Node " << m_nodeId << ": Initiating download for FileID " << fileIdToDownload 
+                      << " ('" << metadataToDownload.filename << "'), Size: " << metadataToDownload.totalSize
+                      << ", Chunks: " << metadataToDownload.numTotalChunks 
+                      << ", Target: " << targetFilePath << std::endl;
 
-        std::cout << "Node " << m_nodeId << ": Initiating download for FileID " << metadataToDownload.fileId 
-                  << " ('" << metadataToDownload.filename << "'), Size: " << metadataToDownload.totalSize
-                  << ", Chunks: " << metadataToDownload.numTotalChunks 
-                  << ", Target: " << targetFilePath << std::endl;
+            DownloadState newState;
+            newState.fileId = fileIdToDownload;
+            newState.metadata = metadataToDownload; 
+            newState.metadata.filepath = targetFilePath; 
+            newState.downloadCompleteNotified = false;
 
-        DownloadState newState;
-        newState.fileId = metadataToDownload.fileId;
-        newState.metadata = metadataToDownload; 
-        newState.metadata.filepath = targetFilePath; 
-        newState.downloadCompleteNotified = false;
+            for (uint32_t i = 0; i < metadataToDownload.numTotalChunks; ++i) {
+                newState.neededChunks.insert(i);
+            }
+            m_ongoingDownloads[fileIdToDownload] = newState;
+        } // --- m_downloadsMutex is released here ---
 
-        for (uint32_t i = 0; i < metadataToDownload.numTotalChunks; ++i) {
-            newState.neededChunks.insert(i);
-        }
-
-        m_ongoingDownloads[metadataToDownload.fileId] = newState;
-
-        m_comm.setupDownloadSession(metadataToDownload.fileId, metadataToDownload.totalSize, metadataToDownload.numTotalChunks);
+        // Now call Comm setup and requestNeededChunks *after* the lock is released
+        m_comm.setupDownloadSession(fileIdToDownload, metadataToDownload.totalSize, metadataToDownload.numTotalChunks);
         
-        requestNeededChunks(metadataToDownload.fileId, true); 
+        // This log was added in a previous step, keep it.
+        std::cout << "Node " << m_nodeId << ": downloadFile - About to call requestNeededChunks for FileID " << fileIdToDownload << std::endl;
+        
+        requestNeededChunks(fileIdToDownload, true); 
 
         return true; // Successfully initiated
     }

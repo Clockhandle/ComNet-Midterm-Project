@@ -113,11 +113,11 @@
             "name": "Debug all 5 nodes",
             "configurations": 
             [
-                "Debug Node 5",
-                "Debug Node 4",
-                "Debug Node 3",
+                "Debug Node 1",
                 "Debug Node 2",
-                "Debug Node 1"
+                "Debug Node 3",
+                "Debug Node 4",
+                "Debug Node 5"
             ]
         }
     ],

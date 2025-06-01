@@ -3,16 +3,101 @@ Logging to: node_5_p2p.log
 Simulating P2P Node 5 (Automated Run)
 Node 5 listening on port 8085
 P2PFileSharer for Node 5 initialized.
+Node 5: P2PFileSharer processing loop started.
+Node 5: P2PFileSharer processing loop started.
 P2PFileSharer for Node 5 started.
 Node 5 (Leecher) will attempt to download 'something_shared.txt'
 Node 5 (Leecher) waiting for metadata for 'something_shared.txt'...
-Node 5: P2PFileSharer processing loop started.
-Node 5: Comm Deserialized Packet: Type=8, From=1, FileID=345854136, PayloadSize=36
-Node 5: handleAnnounceFileMetadata called. From=1, FileID=345854136
-Node 5: Received ANNOUNCE_FILE_METADATA from 1 for FileID 345854136 ('something_shared.txt')
-Node 5: Processing announcement for FileID 345854136 ('something_shared.txt') from Node 1
+Node 5: Comm Deserialized Packet: Type=8, From=1, FileID=532854354, PayloadSize=36
+Node 5: handleAnnounceFileMetadata called. From=1, FileID=532854354
+Node 5: Received ANNOUNCE_FILE_METADATA from 1 for FileID 532854354 ('something_shared.txt')
+Node 5: Processing announcement for FileID 532854354 ('something_shared.txt') from Node 1
 Node 5: getDiscoveredFileMetadata searching for 'something_shared.txt'
-Node 5 (Leecher) found metadata for 'something_shared.txt' (FileID: 345854136).
-Node 5: Initiating download for FileID 345854136 ('something_shared.txt'), Size: 48974, Chunks: 48, Target: ./downloads_node_5/something_shared.txt
-Node 5: Setup download session for TransferID 345854136, expecting 48974 bytes in 48 chunks.
-Node 5: requestNeededChunks called for FileID 345854136 (Initial Call)
+Node 5 (Leecher) found metadata for 'something_shared.txt' (FileID: 532854354).
+Node 5: Initiating download for FileID 532854354 ('something_shared.txt'), Size: 48974, Chunks: 48, Target: ./downloads_node_5/something_shared.txt
+Node 5: Setup download session for TransferID 532854354, expecting 48974 bytes in 48 chunks.
+Node 5: downloadFile - About to call requestNeededChunks for FileID 532854354
+Node 5: requestNeededChunks called for FileID 532854354 (Initial Call)
+Node 5: entered lock in requestNeededChunks
+Node 5: requestNeededChunks - Requesting 10 chunks for FileID 532854354 ('something_shared.txt') from Node 1. Chunks: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+Node 5: Comm::send - Preparing to send PacketType 7 to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Attempting to connect to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Connected to Node 1
+Node 5: Comm::send - Attempting to send 26 bytes to Node 1
+Node 5: Comm::send - Successfully sent 26 bytes of PacketType 7 to Node 1
+Node 5: Comm::send - Preparing to send PacketType 7 to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Attempting to connect to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Connected to Node 1
+Node 5: Comm::send - Attempting to send 26 bytes to Node 1
+Node 5: Comm::send - Successfully sent 26 bytes of PacketType 7 to Node 1
+Node 5: Comm::send - Preparing to send PacketType 7 to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Attempting to connect to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Connected to Node 1
+Node 5: Comm::send - Attempting to send 26 bytes to Node 1
+Node 5: Comm::send - Successfully sent 26 bytes of PacketType 7 to Node 1
+Node 5: Comm::send - Preparing to send PacketType 7 to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Attempting to connect to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Connected to Node 1
+Node 5: Comm::send - Attempting to send 26 bytes to Node 1
+Node 5: Comm::send - Successfully sent 26 bytes of PacketType 7 to Node 1
+Node 5: Comm::send - Preparing to send PacketType 7 to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Attempting to connect to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Connected to Node 1
+Node 5: Comm::send - Attempting to send 26 bytes to Node 1
+Node 5: Comm::send - Successfully sent 26 bytes of PacketType 7 to Node 1
+Node 5: Comm::send - Preparing to send PacketType 7 to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Attempting to connect to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Connected to Node 1
+Node 5: Comm::send - Attempting to send 26 bytes to Node 1
+Node 5: Comm::send - Successfully sent 26 bytes of PacketType 7 to Node 1
+Node 5: Comm::send - Preparing to send PacketType 7 to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Attempting to connect to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Connected to Node 1
+Node 5: Comm::send - Attempting to send 26 bytes to Node 1
+Node 5: Comm::send - Successfully sent 26 bytes of PacketType 7 to Node 1
+Node 5: Comm::send - Preparing to send PacketType 7 to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Attempting to connect to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Connected to Node 1
+Node 5: Comm::send - Attempting to send 26 bytes to Node 1
+Node 5: Comm::send - Successfully sent 26 bytes of PacketType 7 to Node 1
+Node 5: Comm::send - Preparing to send PacketType 7 to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Attempting to connect to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Connected to Node 1
+Node 5: Comm::send - Attempting to send 26 bytes to Node 1
+Node 5: Comm::send - Successfully sent 26 bytes of PacketType 7 to Node 1
+Node 5: Comm::send - Preparing to send PacketType 7 to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Attempting to connect to Node 1 (127.0.0.1:8081)
+Node 5: Comm::send - Connected to Node 1
+Node 5: Comm::send - Attempting to send 26 bytes to Node 1
+Node 5: Comm::send - Successfully sent 26 bytes of PacketType 7 to Node 1
+Node 5 (Leecher) initiated/confirmed download for 'something_shared.txt' (FileID: 532854354). Waiting for completion...
+Node 5: Comm Deserialized Packet: Type=4, From=1, FileID=532854354, PayloadSize=1024
+Node 5: Stored CHUNK 0 for FileID 532854354 (Size: 1024, Total Chunks Stored: 1/48, Total Bytes: 1024/48974)
+Node 5: P2PFileSharer received DATA_FILE_CHUNK directly. This is unexpected if Comm reassembles.
+Node 5: Comm Deserialized Packet: Type=4, From=1, FileID=532854354, PayloadSize=1024
+Node 5: Stored CHUNK 1 for FileID 532854354 (Size: 1024, Total Chunks Stored: 2/48, Total Bytes: 2048/48974)
+Node 5: P2PFileSharer received DATA_FILE_CHUNK directly. This is unexpected if Comm reassembles.
+Node 5: Comm Deserialized Packet: Type=4, From=1, FileID=532854354, PayloadSize=1024
+Node 5: Stored CHUNK 2 for FileID 532854354 (Size: 1024, Total Chunks Stored: 3/48, Total Bytes: 3072/48974)
+Node 5: P2PFileSharer received DATA_FILE_CHUNK directly. This is unexpected if Comm reassembles.
+Node 5: Comm Deserialized Packet: Type=4, From=1, FileID=532854354, PayloadSize=1024
+Node 5: Stored CHUNK 3 for FileID 532854354 (Size: 1024, Total Chunks Stored: 4/48, Total Bytes: 4096/48974)
+Node 5: P2PFileSharer received DATA_FILE_CHUNK directly. This is unexpected if Comm reassembles.
+Node 5: Comm Deserialized Packet: Type=4, From=1, FileID=532854354, PayloadSize=1024
+Node 5: Stored CHUNK 4 for FileID 532854354 (Size: 1024, Total Chunks Stored: 5/48, Total Bytes: 5120/48974)
+Node 5: P2PFileSharer received DATA_FILE_CHUNK directly. This is unexpected if Comm reassembles.
+Node 5: Comm Deserialized Packet: Type=4, From=1, FileID=532854354, PayloadSize=1024
+Node 5: Stored CHUNK 5 for FileID 532854354 (Size: 1024, Total Chunks Stored: 6/48, Total Bytes: 6144/48974)
+Node 5: P2PFileSharer received DATA_FILE_CHUNK directly. This is unexpected if Comm reassembles.
+Node 5: Comm Deserialized Packet: Type=4, From=1, FileID=532854354, PayloadSize=1024
+Node 5: Stored CHUNK 6 for FileID 532854354 (Size: 1024, Total Chunks Stored: 7/48, Total Bytes: 7168/48974)
+Node 5: P2PFileSharer received DATA_FILE_CHUNK directly. This is unexpected if Comm reassembles.
+Node 5: Comm Deserialized Packet: Type=4, From=1, FileID=532854354, PayloadSize=1024
+Node 5: Stored CHUNK 7 for FileID 532854354 (Size: 1024, Total Chunks Stored: 8/48, Total Bytes: 8192/48974)
+Node 5: P2PFileSharer received DATA_FILE_CHUNK directly. This is unexpected if Comm reassembles.
+Node 5: Comm Deserialized Packet: Type=4, From=1, FileID=532854354, PayloadSize=1024
+Node 5: Stored CHUNK 8 for FileID 532854354 (Size: 1024, Total Chunks Stored: 9/48, Total Bytes: 9216/48974)
+Node 5: P2PFileSharer received DATA_FILE_CHUNK directly. This is unexpected if Comm reassembles.
+Node 5: Comm Deserialized Packet: Type=4, From=1, FileID=532854354, PayloadSize=1024
+Node 5: Stored CHUNK 9 for FileID 532854354 (Size: 1024, Total Chunks Stored: 10/48, Total Bytes: 10240/48974)
+Node 5: P2PFileSharer received DATA_FILE_CHUNK directly. This is unexpected if Comm reassembles.
