@@ -14,8 +14,8 @@
 
 Config config; 
 
-const std::string SOURCE_FILE_PATH = "./something.txt"; 
-const std::string NETWORK_SHARED_NAME = "something_shared.txt"; 
+const std::string SOURCE_FILE_PATH = "./test.txt"; 
+const std::string NETWORK_SHARED_NAME = "test_shared.txt"; 
 
 void simulateP2PNode(int currentNodeId) {
     std::cout << "Simulating P2P Node " << currentNodeId << " (Automated Run)" << std::endl;
@@ -150,9 +150,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     
-    // Ensure config is loaded. The global `config` object's constructor should handle this.
-    // If config.loadConfigurations() needs to be called explicitly and isn't in constructor, do it here.
-    // Assuming constructor handles it.
 
     if (config.getNodeConfigs().find(currentNodeId) == config.getNodeConfigs().end()) {
         std::cerr << "Error: Node ID " << currentNodeId << " is not defined in the configuration (config.env)." << std::endl;
@@ -172,6 +169,5 @@ int main(int argc, char *argv[]) {
     
     simulateP2PNode(currentNodeId);
     
-    std::cout << "--- Application for Node " << currentNodeId << " terminated ---" << std::endl; 
     return 0;
 }

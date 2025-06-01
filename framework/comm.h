@@ -523,8 +523,13 @@ private:
                                           << ", Total Chunks Stored: " << buffer.chunks.size() << "/" << buffer.numTotalChunksExpected
                                           << ", Total Bytes: " << buffer.bytesReceived << "/" << buffer.totalSizeExpected << ")" << std::endl;
 
+                                std::cout << "Node " << this->id << ": Comm Reassembly Check - FileID: " << buffer.transferId
+                                          << ", Chunks.size(): " << buffer.chunks.size()
+                                          << ", NumTotalChunksExpected: " << buffer.numTotalChunksExpected << std::endl;
+
                                 if (buffer.chunks.size() == buffer.numTotalChunksExpected && buffer.numTotalChunksExpected > 0)
                                 {
+                                    std::cout << "Node " << this->id << ": Comm Reassembly - CONDITION MET for FileID: " << buffer.transferId << ". Preparing INTERNAL_FULL_FILE_REASSEMBLED." << std::endl;
                                     std::vector<char> reassembledFilePayload;
                                     reassembledFilePayload.reserve(buffer.totalSizeExpected);
                                     bool allChunksValid = true;
@@ -557,6 +562,13 @@ private:
                                     } else if (allChunksValid && reassembledFilePayload.size() != buffer.totalSizeExpected) {
                                          std::cerr << "Node " << this->id << ": Reassembled size mismatch for FileID " << buffer.transferId
                                                    << ". Expected " << buffer.totalSizeExpected << " got " << reassembledFilePayload.size() << std::endl;
+                                    }
+                                }
+                                else {
+                                    // ADD LOG FOR ELSE CASE
+                                    if (buffer.numTotalChunksExpected > 0) { // Avoid logging for 0-chunk files if not needed
+                                        std::cout << "Node " << this->id << ": Comm Reassembly - Condition NOT met for FileID: " << buffer.transferId
+                                                  << ". Chunks.size()=" << buffer.chunks.size() << " != NumTotalChunksExpected=" << buffer.numTotalChunksExpected << std::endl;
                                     }
                                 }
                             } else if (buffer.chunks.count(receivedPacket.seq)) {

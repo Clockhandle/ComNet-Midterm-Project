@@ -1,0 +1,73 @@
+This is chunk number 1. It is exactly 1024 bytes long to fill up the first chunk completely.
+We need to add enough padding to make sure this segment reaches the 1024 byte mark.
+Let's add some more lines of text. This helps in visualizing the chunk boundaries.
+More text, more text, more text. We are getting closer to the target size for this chunk.
+Still a bit more to go. Almost there. Keep adding some repetitive filler content.
+This line should push us over or very near the 1024 byte boundary for the first chunk.
+abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
+abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
+abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
+abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
+abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
+abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
+abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
+abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
+abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyza
+This is chunk number 2. It is also exactly 1024 bytes long. We are filling it up now.
+Similar to the first chunk, we need to ensure this part of the file is 1024 bytes.
+Adding more lines to reach the desired length for the second chunk of our test file.
+The purpose of this is to have a predictable number of chunks for easier testing.
+Keep on typing, keep on typing. We need to make sure this chunk is full.
+This text is specifically crafted for testing P2P file transfer chunking mechanisms.
+zyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyx
+zyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyx
+zyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyx
+zyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyx
+zyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyx
+zyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyx
+zyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyx
+zyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyx
+zyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyxwutsrqponmlkjihgfedcbazyx
+This is chunk number 3. Following the pattern, this one is also 1024 bytes long.
+The content itself doesn't matter as much as the size for this particular test.
+We are ensuring that the chunking logic in the P2P system works as expected.
+Each full chunk should be 1024 bytes, and the last one will be smaller.
+More filler text to make sure we reach the 1024 byte mark for chunk number three.
+This is a good way to verify that the file is split correctly by the seeder.
+0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789x
+This is chunk number 4. Yes, you guessed it, another 1024 bytes of text.
+We are meticulously crafting this file to ensure it has exactly five chunks.
+The first four chunks will be full, and the fifth chunk will contain the remainder.
+This makes debugging and verifying the transfer process much more straightforward.
+Almost done with filling up the fourth chunk. Just a little more text is needed.
+The consistency in chunk sizes (except for the last one) is key for this test.
+PQRSTUVWXYZAABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQRSTUVWXYZAABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQRSTUVWXYZAABBCCDDE
+PQRSTUVWXYZAABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQRSTUVWXYZAABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQRSTUVWXYZAABBCCDDE
+PQRSTUVWXYZAABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQRSTUVWXYZAABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQRSTUVWXYZAABBCCDDE
+PQRSTUVWXYZAABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQRSTUVWXYZAABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQRSTUVWXYZAABBCCDDE
+PQRSTUVWXYZAABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQRSTUVWXYZAABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQRSTUVWXYZAABBCCDDE
+PQRSTUVWXYZAABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQRSTUVWXYZAABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQRSTUVWXYZAABBCCDDE
+PQRSTUVWXYZAABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQRSTUVWXYZAABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQRSTUVWXYZAABBCCDDE
+PQRSTUVWXYZAABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQRSTUVWXYZAABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQRSTUVWXYZAABBCCDDE
+PQRSTUVWXYZAABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQRSTUVWXYZAABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQRSTUVWXYZAABBCCDDE
+This is the beginning of chunk number 5. This chunk will be smaller than the others.
+It contains the remaining 500 bytes of the file.
+This helps test the handling of the final, potentially partially filled, chunk.
+The total file size is 4096 (for the first four chunks) + 500 = 4596 bytes.
+This content is specifically for the fifth and final chunk.
+It doesn't need to be 1024 bytes long.
+Just enough to make it distinct and to complete the file.
+The P2P system should correctly identify this as the last chunk.
+Leechers should reassemble all five chunks in the correct order.
+End of test file. This line completes the 500 bytes for the last chunk.
+Padding to reach exactly 500 bytes for this final segment of the test file.
+More padding. Almost there. We need to be precise for this test case.
+Final bit of text to ensure the fifth chunk is 500 bytes. Done.

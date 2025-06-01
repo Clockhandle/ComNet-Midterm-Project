@@ -420,11 +420,8 @@ private:
                         handleRequestFileChunk(receivedPacket);
                         break;
                     case PacketType::DATA_FILE_CHUNK:
-                        // This case is typically handled by Comm's reassembly.
-                        // If it reaches here, it means Comm is passing it through, or it's an error.
                         std::cout << "Node " << m_nodeId << ": P2PFileSharer received DATA_FILE_CHUNK directly. This is unexpected if Comm reassembles." << std::endl;
-                        // If you intend for P2P to handle raw chunks (e.g., for ACKs per chunk):
-                        // handleDataFileChunk(receivedPacket); 
+                        handleDataFileChunk(receivedPacket); 
                         break;
                     case PacketType::CHUNK_ACK:
                         handleChunkAck(receivedPacket);
